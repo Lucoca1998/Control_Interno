@@ -870,3 +870,270 @@ export async function parseUploadedExcelFile(file) {
     reader.readAsArrayBuffer(file);
   });
 }
+
+const QUALITY_MONTHS = [
+  { month: 5, label: 'MAY' },
+  { month: 6, label: 'JUN' },
+  { month: 7, label: 'JUL' },
+  { month: 8, label: 'AGO' }
+];
+
+const QUALITY_ERROR_CATEGORIES = ['Producto', 'Cantidad', 'Pallet', 'Incompleta'];
+
+function getQualityErrorRecords(mercadoList, bodegaObsList, bodegaFSList) {
+  return {
+    mercado: (mercadoList || []).map(record => ({ ...record, source: 'mercado' })),
+    bodega: [
+      ...(bodegaObsList || []).map(record => ({ ...record, source: 'bodega_observacion' })),
+      ...(bodegaFSList || []).map(record => ({ ...record, source: 'bodega_faltante_sobrante' }))
+    ]
+  };
+}
+
+function normalizeSearchText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase();
+}
+
+function getRecordText(record) {
+  return normalizeSearchText([
+    record?.motivo,
+    record?.tipo_clasificacion,
+    record?.descripcion,
+    record?.tipo_fs,
+    record?.producto_esperado,
+    record?.producto_entregado,
+    record?.id_pallet,
+    record?.origen
+  ].filter(Boolean).join(' '));
+}
+
+function classifyQualityError(record) {
+  const text = getRecordText(record);
+
+  if (text.includes('PALLET') || text.includes('PALET') || text.includes('ID_PALLET')) {
+    return 'Pallet';
+  }
+
+  if (
+    text.includes('CRUCE') ||
+    text.includes('PRODUCTO') ||
+    /^C[.\s]/.test(text) ||
+    text.includes(' X ')
+  ) {
+    return 'Producto';
+  }
+
+  if (
+    text.includes('INCOMPLET') ||
+    text.includes('VACIA') ||
+    text.includes('MERM') ||
+    text.includes('ROTA') ||
+    text.includes('ROTURA') ||
+    text.includes('PINCH') ||
+    text.includes('SIN TAPA') ||
+    text.includes('SIN ETIQUETA') ||
+    text.includes('MAL ESTADO') ||
+    text.includes('VENCIDA')
+  ) {
+    return 'Incompleta';
+  }
+
+  if (
+    text.includes('FALTANTE') ||
+    text.includes('SOBRANTE') ||
+    text.includes('CANT') ||
+    text.includes('CAJA') ||
+    text.includes('CJA') ||
+    text.includes('CJS') ||
+    text.includes('BOT') ||
+    text.includes('PQT') ||
+    text.includes('PQTS') ||
+    /^F[.\s0-9]/.test(text) ||
+    /^S[.\s0-9]/.test(text)
+  ) {
+    return 'Cantidad';
+  }
+
+  return 'Producto';
+}
+
+function getLatestComparisonYear(records) {
+  const preferredYears = records
+    .map(record => record.fecha)
+    .filter(fecha => VALID_DATE_RE.test(fecha))
+    .map(fecha => ({ year: Number(fecha.slice(0, 4)), month: Number(fecha.slice(5, 7)) }))
+    .filter(date => QUALITY_MONTHS.some(item => item.month === date.month))
+    .map(date => date.year);
+
+  if (preferredYears.length > 0) return Math.max(...preferredYears);
+
+  const allYears = records
+    .map(record => record.fecha)
+    .filter(fecha => VALID_DATE_RE.test(fecha))
+    .map(fecha => Number(fecha.slice(0, 4)));
+
+  return allYears.length > 0 ? Math.max(...allYears) : new Date().getFullYear();
+}
+
+function getDaysInMonth(year, month) {
+  return new Date(year, month, 0).getDate();
+}
+
+function createMonthKey(year, month) {
+  return `${year}-${pad2(month)}`;
+}
+
+function createDateKey(year, month, day) {
+  return `${year}-${pad2(month)}-${pad2(day)}`;
+}
+
+function countRecordsByMonth(records, year) {
+  const monthCounts = {};
+  QUALITY_MONTHS.forEach(({ month }) => {
+    monthCounts[createMonthKey(year, month)] = 0;
+  });
+
+  records.forEach(record => {
+    if (!VALID_DATE_RE.test(record.fecha)) return;
+    const monthKey = record.fecha.slice(0, 7);
+    if (Object.prototype.hasOwnProperty.call(monthCounts, monthKey)) {
+      monthCounts[monthKey] += 1;
+    }
+  });
+
+  return monthCounts;
+}
+
+function countRecordsByDay(records, year) {
+  const dayCounts = {};
+  QUALITY_MONTHS.forEach(({ month }) => {
+    const days = getDaysInMonth(year, month);
+    for (let day = 1; day <= days; day++) {
+      dayCounts[createDateKey(year, month, day)] = 0;
+    }
+  });
+
+  records.forEach(record => {
+    if (Object.prototype.hasOwnProperty.call(dayCounts, record.fecha)) {
+      dayCounts[record.fecha] += 1;
+    }
+  });
+
+  return dayCounts;
+}
+
+function countQualityCategories(records) {
+  const counts = QUALITY_ERROR_CATEGORIES.reduce((acc, category) => {
+    acc[category] = 0;
+    return acc;
+  }, {});
+
+  records.forEach(record => {
+    counts[classifyQualityError(record)] += 1;
+  });
+
+  return QUALITY_ERROR_CATEGORIES.map(category => ({
+    category,
+    value: counts[category]
+  }));
+}
+
+function getDateCoverage(records) {
+  const dates = records
+    .map(record => record.fecha)
+    .filter(fecha => VALID_DATE_RE.test(fecha))
+    .sort();
+
+  return {
+    start: dates[0] || '',
+    end: dates[dates.length - 1] || ''
+  };
+}
+
+function getComparablePeriod(mercadoRecords, bodegaRecords) {
+  const mercadoCoverage = getDateCoverage(mercadoRecords);
+  const bodegaCoverage = getDateCoverage(bodegaRecords);
+
+  if (mercadoCoverage.start && bodegaCoverage.start) {
+    const start = mercadoCoverage.start > bodegaCoverage.start ? mercadoCoverage.start : bodegaCoverage.start;
+    const end = mercadoCoverage.end < bodegaCoverage.end ? mercadoCoverage.end : bodegaCoverage.end;
+
+    if (start <= end) {
+      return { start, end, isAligned: true };
+    }
+  }
+
+  const fallbackCoverage = getDateCoverage([...mercadoRecords, ...bodegaRecords]);
+  return {
+    ...fallbackCoverage,
+    isAligned: false
+  };
+}
+
+function filterRecordsToPeriod(records, period) {
+  if (!period?.start || !period?.end) return records;
+  return records.filter(record => (
+    VALID_DATE_RE.test(record.fecha) &&
+    record.fecha >= period.start &&
+    record.fecha <= period.end
+  ));
+}
+
+/**
+ * Datos consolidados para la página principal de control interno de calidad.
+ */
+export function getQualityDashboardData(mercadoList, bodegaObsList, bodegaFSList) {
+  const records = getQualityErrorRecords(mercadoList, bodegaObsList, bodegaFSList);
+  const period = getComparablePeriod(records.mercado, records.bodega);
+  const mercadoComparable = filterRecordsToPeriod(records.mercado, period);
+  const bodegaComparable = filterRecordsToPeriod(records.bodega, period);
+  const bodegaTotal = bodegaComparable.length;
+  const reclamosTotal = mercadoComparable.length;
+  const total = bodegaTotal + reclamosTotal;
+  const prevencionPct = total > 0 ? Number(((bodegaTotal / total) * 100).toFixed(1)) : 0;
+  const comparisonYear = getLatestComparisonYear([...records.mercado, ...records.bodega]);
+
+  const bodegaMonthCounts = countRecordsByMonth(bodegaComparable, comparisonYear);
+  const mercadoMonthCounts = countRecordsByMonth(mercadoComparable, comparisonYear);
+  const monthlyComparison = {
+    year: comparisonYear,
+    categories: QUALITY_MONTHS.map(item => item.label),
+    bodegaSeries: QUALITY_MONTHS.map(item => bodegaMonthCounts[createMonthKey(comparisonYear, item.month)] || 0),
+    mercadoSeries: QUALITY_MONTHS.map(item => mercadoMonthCounts[createMonthKey(comparisonYear, item.month)] || 0)
+  };
+
+  const bodegaDayCounts = countRecordsByDay(bodegaComparable, comparisonYear);
+  const mercadoDayCounts = countRecordsByDay(mercadoComparable, comparisonYear);
+  const dailyKeys = QUALITY_MONTHS.flatMap(({ month, label }) => {
+    const days = getDaysInMonth(comparisonYear, month);
+    return Array.from({ length: days }, (_, index) => ({
+      key: createDateKey(comparisonYear, month, index + 1),
+      label: `${label} ${pad2(index + 1)}`
+    }));
+  });
+
+  const dailyComparison = {
+    year: comparisonYear,
+    categories: dailyKeys.map(item => item.label),
+    dates: dailyKeys.map(item => item.key),
+    bodegaSeries: dailyKeys.map(item => bodegaDayCounts[item.key] || 0),
+    mercadoSeries: dailyKeys.map(item => mercadoDayCounts[item.key] || 0)
+  };
+
+  return {
+    kpis: {
+      bodega: bodegaTotal,
+      reclamos: reclamosTotal,
+      total,
+      prevencionPct
+    },
+    monthlyComparison,
+    dailyComparison,
+    preparedErrors: countQualityCategories(bodegaComparable),
+    marketErrors: countQualityCategories(mercadoComparable),
+    period
+  };
+}

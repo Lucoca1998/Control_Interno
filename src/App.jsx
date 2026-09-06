@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import PagePrincipalCalidad from './components/PagePrincipalCalidad';
 import Page1Operaciones from './components/Page1Operaciones';
 import Page2TrazabilidadVS from './components/Page2TrazabilidadVS';
 import Page3Ranking from './components/Page3Ranking';
@@ -7,12 +8,13 @@ import { calculateAvailableDates, countRecordsInDateRange, filterDataset, purgeD
 import { 
   BarChart3, 
   GitCompare, 
+  LayoutDashboard,
   Trophy, 
   UploadCloud
 } from 'lucide-react';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('operaciones');
+  const [activeTab, setActiveTab] = useState('principal');
   const [rawDataset, setRawDataset] = useState({ mercado: [], bodega_camiones: [], bodega_observaciones: [], bodega_faltantes_sobrantes: [], loaded_files: [], available_dates: {} });
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
@@ -135,6 +137,14 @@ export default function App() {
         {/* Tab Navigation */}
         <nav className="nav-tabs">
           <button
+            className={`tab-btn ${activeTab === 'principal' ? 'active' : ''}`}
+            onClick={() => setActiveTab('principal')}
+          >
+            <LayoutDashboard size={18} />
+            Principal
+          </button>
+
+          <button
             className={`tab-btn ${activeTab === 'operaciones' ? 'active' : ''}`}
             onClick={() => setActiveTab('operaciones')}
           >
@@ -188,6 +198,12 @@ export default function App() {
 
         {!isLoading && (
           <>
+            {activeTab === 'principal' && (
+              <PagePrincipalCalidad
+                filteredData={filteredData}
+              />
+            )}
+
             {activeTab === 'operaciones' && (
               <Page1Operaciones
                 filteredData={filteredData}
