@@ -256,7 +256,7 @@ function MercadoErrorsCard({ title, breakdown, areaCounts, filter }) {
           </span>
         </div>
 
-        {/* Porcentajes por Área en este recuadro (Mercado, Bodega, Producción, Comercialización) */}
+        {/* Porcentajes por Área en este recuadro (Mercado, Bodega, Producción) */}
         {areaCounts && totalReclamos > 0 && (
           <div style={{ 
             display: 'flex', 
@@ -279,9 +279,6 @@ function MercadoErrorsCard({ title, breakdown, areaCounts, filter }) {
               </span>
               <span className="badge badge-produccion" style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem' }}>
                 Producción: <strong>{areaCounts.produccionPct}%</strong> ({areaCounts.produccion})
-              </span>
-              <span className="badge badge-comercializacion" style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem' }}>
-                Comercialización: <strong>{areaCounts.comercializacionPct}%</strong> ({areaCounts.comercializacion})
               </span>
             </div>
           </div>
@@ -723,13 +720,13 @@ export default function PagePrincipalCalidad({ dataset }) {
         />
       </section>
 
-      {/* DETALLE DE ERRORES POR ÁREA (BODEGA, PRODUCCIÓN, COMERCIALIZACIÓN & MERCADO) - FILTRO EXCLUSIVO POR MES */}
+      {/* DETALLE DE ERRORES POR ÁREA (BODEGA, PRODUCCIÓN & MERCADO) - FILTRO EXCLUSIVO POR MES */}
       <section className="glass-card">
         <div className="card-header quality-card-header" style={{ flexWrap: 'wrap', gap: '1rem' }}>
           <div>
             <div className="card-title">
               <ClipboardList size={20} color="#E61D2B" />
-              Detalle de Errores por Área (Bodega, Producción, Comercialización & Mercado)
+              Detalle de Errores por Área (Bodega, Producción & Mercado)
             </div>
             <p className="quality-card-caption">
               Análisis consolidado mensual por área de responsabilidad | Periodo: <strong style={{ color: '#fff' }}>{mercadoDetails.periodLabel}</strong> ({mercadoDetails.total.toLocaleString()} reclamos)
@@ -789,16 +786,6 @@ export default function PagePrincipalCalidad({ dataset }) {
               </div>
               <div className="kpi-sub" style={{ color: '#C084FC', fontWeight: 700 }}>
                 {mercadoDetails.areaCounts.produccionPct}% del total
-              </div>
-            </div>
-
-            <div className="glass-card kpi-card amber">
-              <div className="kpi-title">ERRORES EN COMERCIALIZACIÓN</div>
-              <div className="kpi-value" style={{ color: '#FBBF24' }}>
-                {mercadoDetails.areaCounts.comercializacion.toLocaleString()}
-              </div>
-              <div className="kpi-sub" style={{ color: '#FBBF24', fontWeight: 700 }}>
-                {mercadoDetails.areaCounts.comercializacionPct}% del total
               </div>
             </div>
           </div>

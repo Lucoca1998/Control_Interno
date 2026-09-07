@@ -1240,14 +1240,6 @@ export function classifyAreaResponsibility(record) {
   }
 
   if (
-    text.includes('COMERCIAL') || text.includes('VENTA') || text.includes('VENTAS') ||
-    text.includes('PREVENTA') || text.includes('PEDIDO') || text.includes('CLIENTE') ||
-    text.includes('SISTEMA') || text.includes('CAMBIO CLIENTE') || text.includes('PROMOCION') || text.includes('PROMOCIÓN')
-  ) {
-    return 'Comercialización';
-  }
-
-  if (
     text.includes('BODEGA') || text.includes('PICKING') || text.includes('ARMADO') ||
     text.includes('PALLET') || text.includes('PALET') || text.includes('ALMACEN') || text.includes('ALMACÉN') ||
     text.includes('CONTROL INTERNO')
@@ -1281,7 +1273,6 @@ export function getMercadoErrorDetails(mercadoList, periodFilter = {}) {
   const areaCounts = {
     Bodega: 0,
     Producción: 0,
-    Comercialización: 0,
     Mercado: 0
   };
 
@@ -1300,7 +1291,7 @@ export function getMercadoErrorDetails(mercadoList, periodFilter = {}) {
         productCounts: {},
         locationCounts: {},
         quantityByUnit: {},
-        areaCounts: { Bodega: 0, Producción: 0, Comercialización: 0, Mercado: 0 },
+        areaCounts: { Bodega: 0, Producción: 0, Mercado: 0 },
         count: 0
       };
     }
@@ -1342,8 +1333,6 @@ export function getMercadoErrorDetails(mercadoList, periodFilter = {}) {
         bodegaPct: item.count > 0 ? Number(((item.areaCounts.Bodega / item.count) * 100).toFixed(0)) : 0,
         produccionCount: item.areaCounts.Producción || 0,
         produccionPct: item.count > 0 ? Number(((item.areaCounts.Producción / item.count) * 100).toFixed(0)) : 0,
-        comercializacionCount: item.areaCounts.Comercialización || 0,
-        comercializacionPct: item.count > 0 ? Number(((item.areaCounts.Comercialización / item.count) * 100).toFixed(0)) : 0,
         mercadoCount: item.areaCounts.Mercado || 0,
         mercadoPct: item.count > 0 ? Number(((item.areaCounts.Mercado / item.count) * 100).toFixed(0)) : 0
       };
@@ -1379,8 +1368,6 @@ export function getMercadoErrorDetails(mercadoList, periodFilter = {}) {
       bodegaPct: total > 0 ? Number(((areaCounts.Bodega / total) * 100).toFixed(1)) : 0,
       produccion: areaCounts.Producción,
       produccionPct: total > 0 ? Number(((areaCounts.Producción / total) * 100).toFixed(1)) : 0,
-      comercializacion: areaCounts.Comercialización,
-      comercializacionPct: total > 0 ? Number(((areaCounts.Comercialización / total) * 100).toFixed(1)) : 0,
       mercado: areaCounts.Mercado,
       mercadoPct: total > 0 ? Number(((areaCounts.Mercado / total) * 100).toFixed(1)) : 0
     }
