@@ -4,7 +4,7 @@ import Page1Operaciones from './components/Page1Operaciones';
 import Page2TrazabilidadVS from './components/Page2TrazabilidadVS';
 import Page3Ranking from './components/Page3Ranking';
 import FileUploadModal from './components/FileUploadModal';
-import { calculateAvailableDates, countRecordsInDateRange, filterDataset, purgeDatesFromDataset } from './utils/dataProcessor';
+import { calculateAvailableDates, countRecordsInDateRange, filterDataset, getLatestComparableDateFilters, purgeDatesFromDataset } from './utils/dataProcessor';
 import { 
   BarChart3, 
   GitCompare, 
@@ -46,6 +46,10 @@ export default function App() {
           ...data,
           available_dates: calculateAvailableDates(data)
         });
+        setFilters(prev => ({
+          ...prev,
+          ...getLatestComparableDateFilters(data)
+        }));
       } catch (err) {
         console.error("Error loading data.json:", err);
         setLoadError("No se pudo cargar el archivo data.json inicial.");
@@ -200,7 +204,7 @@ export default function App() {
           <>
             {activeTab === 'principal' && (
               <PagePrincipalCalidad
-                filteredData={filteredData}
+                dataset={rawDataset}
               />
             )}
 

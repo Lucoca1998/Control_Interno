@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
 import Chart from 'react-apexcharts';
-import { getQualityDashboardData } from '../utils/dataProcessor';
+import { getBodegaPeriodOptions, getMercadoErrorDetails, getMercadoPeriodOptions, getQualityDashboardData } from '../utils/dataProcessor';
 import {
   AlertTriangle,
   BarChart3,
   Calculator,
   Camera,
   CheckCircle,
+  ClipboardList,
   Package,
   Percent,
   ShieldCheck,
@@ -48,10 +49,60 @@ function loadStoredPhotos() {
   }
 }
 
-function ErrorComparisonColumn({ title, items, tone, maxValue }) {
+function resolveSelectedPeriod(period, options) {
+  const year = period.year || options.latest?.year || '';
+  const months = options.monthsByYear[year] || [];
+  const month = period.month === 'TODOS'
+    ? 'TODOS'
+    : months.some(item => item.value === period.month)
+      ? period.month
+      : months[months.length - 1]?.value || '';
+
+  return { year, month, months };
+}
+
+function PeriodFilter({ selected, months, years, onYearChange, onMonthChange, prefix }) {
+  return (
+    <div className="quality-card-period-filter">
+      <label>
+        Año
+        <select
+          className="form-control"
+          value={selected.year}
+          onChange={(event) => onYearChange(event.target.value)}
+          aria-label={`${prefix} año`}
+        >
+          {years.map(year => (
+            <option value={year} key={year}>{year}</option>
+          ))}
+        </select>
+      </label>
+
+      <label>
+        Mes
+        <select
+          className="form-control"
+          value={selected.month}
+          onChange={(event) => onMonthChange(event.target.value)}
+          aria-label={`${prefix} mes`}
+        >
+          <option value="TODOS">Todos</option>
+          {months.map(month => (
+            <option value={month.value} key={month.value}>{month.label}</option>
+          ))}
+        </select>
+      </label>
+    </div>
+  );
+}
+
+function ErrorComparisonColumn({ title, items, tone, maxValue, filter }) {
   return (
     <div className="glass-card quality-error-column">
-      <h3>{title}</h3>
+      <div className="quality-error-column-header">
+        <h3>{title}</h3>
+        {filter}
+      </div>
       <div className="quality-error-bars">
         {items.map(item => {
           const width = maxValue > 0 ? Math.max((item.value / maxValue) * 100, item.value > 0 ? 4 : 0) : 0;
@@ -73,16 +124,40 @@ function ErrorComparisonColumn({ title, items, tone, maxValue }) {
   );
 }
 
-export default function PagePrincipalCalidad({ filteredData }) {
+export default function PagePrincipalCalidad({ dataset }) {
   const [comparisonMode, setComparisonMode] = useState('mensual');
+  const [mercadoPeriod, setMercadoPeriod] = useState({ year: '', month: '' });
+  const [bodegaPeriod, setBodegaPeriod] = useState({ year: '', month: '' });
   const [photos, setPhotos] = useState(loadStoredPhotos);
   const [photoNotice, setPhotoNotice] = useState('');
 
-  const { mercado, bodega_observaciones, bodega_faltantes_sobrantes } = filteredData;
+  const { mercado, bodega_observaciones, bodega_faltantes_sobrantes } = dataset;
+
+  const mercadoPeriodOptions = useMemo(() => getMercadoPeriodOptions(mercado), [mercado]);
+  const bodegaPeriodOptions = useMemo(() => (
+    getBodegaPeriodOptions(bodega_observaciones, bodega_faltantes_sobrantes)
+  ), [bodega_observaciones, bodega_faltantes_sobrantes]);
+  const selectedMercado = resolveSelectedPeriod(mercadoPeriod, mercadoPeriodOptions);
+  const selectedBodega = resolveSelectedPeriod(bodegaPeriod, bodegaPeriodOptions);
+  const activeMercadoPeriodFilter = useMemo(() => ({
+    year: selectedMercado.year,
+    month: selectedMercado.month
+  }), [selectedMercado.year, selectedMercado.month]);
+  const activeBodegaPeriodFilter = useMemo(() => ({
+    year: selectedBodega.year,
+    month: selectedBodega.month
+  }), [selectedBodega.year, selectedBodega.month]);
 
   const dashboard = useMemo(() => (
-    getQualityDashboardData(mercado, bodega_observaciones, bodega_faltantes_sobrantes)
-  ), [mercado, bodega_observaciones, bodega_faltantes_sobrantes]);
+    getQualityDashboardData(mercado, bodega_observaciones, bodega_faltantes_sobrantes, {
+      mercado: activeMercadoPeriodFilter,
+      bodega: activeBodegaPeriodFilter
+    })
+  ), [mercado, bodega_observaciones, bodega_faltantes_sobrantes, activeMercadoPeriodFilter, activeBodegaPeriodFilter]);
+
+  const mercadoDetails = useMemo(() => (
+    getMercadoErrorDetails(mercado, activeMercadoPeriodFilter)
+  ), [mercado, activeMercadoPeriodFilter]);
 
   const persistPhotos = (nextPhotos) => {
     try {
@@ -139,7 +214,7 @@ export default function PagePrincipalCalidad({ filteredData }) {
     {
       label: 'RECLAMOS',
       value: dashboard.kpis.reclamos.toLocaleString(),
-      detail: 'Llegaron al mercado',
+      detail: `Mercado ${mercadoDetails.periodLabel}`,
       icon: AlertTriangle,
       tone: 'red'
     },
@@ -227,8 +302,24 @@ export default function PagePrincipalCalidad({ filteredData }) {
   const maxErrorValue = Math.max(
     1,
     ...dashboard.preparedErrors.map(item => item.value),
-    ...dashboard.marketErrors.map(item => item.value)
+    ...mercadoDetails.categoryCounts.map(item => item.value)
   );
+
+  const handleMercadoYearChange = (nextYear) => {
+    const nextMonths = mercadoPeriodOptions.monthsByYear[nextYear] || [];
+    setMercadoPeriod({
+      year: nextYear,
+      month: nextMonths[nextMonths.length - 1]?.value || ''
+    });
+  };
+
+  const handleBodegaYearChange = (nextYear) => {
+    const nextMonths = bodegaPeriodOptions.monthsByYear[nextYear] || [];
+    setBodegaPeriod({
+      year: nextYear,
+      month: nextMonths[nextMonths.length - 1]?.value || ''
+    });
+  };
 
   return (
     <div className="quality-page animate-fade-in">
@@ -322,13 +413,124 @@ export default function PagePrincipalCalidad({ filteredData }) {
           items={dashboard.preparedErrors}
           maxValue={maxErrorValue}
           tone="green"
+          filter={(
+            <PeriodFilter
+              selected={selectedBodega}
+              months={selectedBodega.months}
+              years={bodegaPeriodOptions.years}
+              onYearChange={handleBodegaYearChange}
+              onMonthChange={(month) => setBodegaPeriod(prev => ({ ...prev, month }))}
+              prefix="Errores en preparado"
+            />
+          )}
         />
         <ErrorComparisonColumn
-          title="ERRORES EN MERCADO"
-          items={dashboard.marketErrors}
+          title={`ERRORES EN MERCADO - ${mercadoDetails.periodLabel.toUpperCase()}`}
+          items={mercadoDetails.categoryCounts}
           maxValue={maxErrorValue}
           tone="red"
+          filter={(
+            <PeriodFilter
+              selected={selectedMercado}
+              months={selectedMercado.months}
+              years={mercadoPeriodOptions.years}
+              onYearChange={handleMercadoYearChange}
+              onMonthChange={(month) => setMercadoPeriod(prev => ({ ...prev, month }))}
+              prefix="Errores en mercado"
+            />
+          )}
         />
+      </section>
+
+      <section className="glass-card">
+        <div className="card-header quality-card-header">
+          <div>
+            <div className="card-title">
+              <ClipboardList size={20} color="#E61D2B" />
+              Detalle de errores en mercado
+            </div>
+            <p className="quality-card-caption">{mercadoDetails.periodLabel}</p>
+          </div>
+          <span className="quality-period-badge">
+            {mercadoDetails.total.toLocaleString()} reclamos
+          </span>
+        </div>
+
+        <div className="card-body quality-market-detail-body">
+          <div className="quality-detail-summary">
+            <div>
+              <span>Reclamos del periodo</span>
+              <strong>{mercadoDetails.total.toLocaleString()}</strong>
+            </div>
+            <div>
+              <span>Motivo principal</span>
+              <strong>{mercadoDetails.topReason?.motivo || 'Sin datos'}</strong>
+            </div>
+            <div>
+              <span>Productos afectados</span>
+              <strong>{mercadoDetails.uniqueProductsCount.toLocaleString()}</strong>
+            </div>
+          </div>
+
+          <div className="quality-market-detail-grid">
+            <div className="table-container">
+              <table className="custom-table quality-detail-table">
+                <thead>
+                  <tr>
+                    <th>Error detectado</th>
+                    <th>Clasificación</th>
+                    <th>Reclamos</th>
+                    <th>%</th>
+                    <th>Cantidad reportada</th>
+                    <th>Producto más repetido</th>
+                    <th>Lugar</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {mercadoDetails.breakdown.length > 0 ? (
+                    mercadoDetails.breakdown.map(error => (
+                      <tr key={error.motivo}>
+                        <td style={{ fontWeight: 800, color: '#fff' }}>{error.motivo}</td>
+                        <td>{error.classification}</td>
+                        <td style={{ fontWeight: 800, color: '#FF5252' }}>{error.count.toLocaleString()}</td>
+                        <td style={{ fontWeight: 700 }}>{formatPercent(error.percentage)}</td>
+                        <td>{error.quantity}</td>
+                        <td>
+                          <span style={{ fontWeight: 700, color: '#F1F5F9' }}>{error.topProduct.label}</span>
+                          <span className="quality-detail-muted"> ({error.topProduct.count})</span>
+                        </td>
+                        <td>
+                          {error.topLocation.label}
+                          <span className="quality-detail-muted"> ({error.topLocation.count})</span>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan="7" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                        No hay reclamos de mercado para el periodo seleccionado
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <aside className="quality-top-products">
+              <h3>Productos con más reclamos</h3>
+              {mercadoDetails.topProducts.length > 0 ? (
+                mercadoDetails.topProducts.map(product => (
+                  <div className="quality-top-product-row" key={product.product}>
+                    <span>{product.product}</span>
+                    <strong>{product.count}</strong>
+                  </div>
+                ))
+              ) : (
+                <p>Sin productos para este periodo.</p>
+              )}
+            </aside>
+          </div>
+        </div>
       </section>
 
       <section className="glass-card">

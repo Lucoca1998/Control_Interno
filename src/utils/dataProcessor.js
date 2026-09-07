@@ -880,6 +880,11 @@ const QUALITY_MONTHS = [
 
 const QUALITY_ERROR_CATEGORIES = ['Producto', 'Cantidad', 'Pallet', 'Incompleta'];
 
+const MONTH_LABELS = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+];
+
 function getQualityErrorRecords(mercadoList, bodegaObsList, bodegaFSList) {
   return {
     mercado: (mercadoList || []).map(record => ({ ...record, source: 'mercado' })),
@@ -1041,6 +1046,28 @@ function countQualityCategories(records) {
   }));
 }
 
+function countMapValue(map, key) {
+  const finalKey = key || 'Sin dato';
+  map[finalKey] = (map[finalKey] || 0) + 1;
+}
+
+function sumMapValue(map, key, value) {
+  const finalKey = key || 'Sin dato';
+  map[finalKey] = (map[finalKey] || 0) + (Number(value) || 0);
+}
+
+function getTopMapEntry(map) {
+  const entries = Object.entries(map);
+  if (entries.length === 0) return { label: 'Sin dato', count: 0 };
+  const [label, count] = entries.sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
+  return { label, count };
+}
+
+function formatMonthLabel(month) {
+  const monthIndex = Number(month) - 1;
+  return MONTH_LABELS[monthIndex] || `Mes ${month}`;
+}
+
 function getDateCoverage(records) {
   const dates = records
     .map(record => record.fecha)
@@ -1050,6 +1077,29 @@ function getDateCoverage(records) {
   return {
     start: dates[0] || '',
     end: dates[dates.length - 1] || ''
+  };
+}
+
+function getRequestedPeriod(periodFilter) {
+  const year = Number(periodFilter?.year);
+  if (!year) return null;
+
+  const month = periodFilter?.month === 'TODOS' ? 0 : Number(periodFilter?.month);
+
+  if (month) {
+    return {
+      start: createDateKey(year, month, 1),
+      end: createDateKey(year, month, getDaysInMonth(year, month)),
+      isAligned: true,
+      filterType: 'month'
+    };
+  }
+
+  return {
+    start: `${year}-01-01`,
+    end: `${year}-12-31`,
+    isAligned: true,
+    filterType: 'year'
   };
 }
 
@@ -1082,22 +1132,164 @@ function filterRecordsToPeriod(records, period) {
   ));
 }
 
+function getPeriodLabel(periodFilter, period) {
+  const year = Number(periodFilter?.year);
+  const month = periodFilter?.month === 'TODOS' ? 0 : Number(periodFilter?.month);
+
+  if (year && month) return `${formatMonthLabel(month)} ${year}`;
+  if (year) return `${year}`;
+  if (period?.start && period?.end) return `${period.start} a ${period.end}`;
+  return 'Periodo disponible';
+}
+
+function createYearPeriod(year) {
+  return {
+    start: `${year}-01-01`,
+    end: `${year}-12-31`
+  };
+}
+
+function getPeriodOptions(records) {
+  const periodMap = {};
+
+  (records || []).forEach(record => {
+    if (!VALID_DATE_RE.test(record.fecha)) return;
+    const year = record.fecha.slice(0, 4);
+    const month = Number(record.fecha.slice(5, 7));
+    if (!periodMap[year]) periodMap[year] = new Set();
+    periodMap[year].add(month);
+  });
+
+  const years = Object.keys(periodMap).sort((a, b) => Number(b) - Number(a));
+  const monthsByYear = years.reduce((acc, year) => {
+    acc[year] = [...periodMap[year]]
+      .sort((a, b) => a - b)
+      .map(month => ({
+        value: String(month),
+        label: formatMonthLabel(month)
+      }));
+    return acc;
+  }, {});
+
+  const latestYear = years[0] || '';
+  const latestMonth = latestYear && monthsByYear[latestYear]?.length
+    ? monthsByYear[latestYear][monthsByYear[latestYear].length - 1].value
+    : '';
+
+  return {
+    years,
+    monthsByYear,
+    latest: latestYear ? { year: latestYear, month: latestMonth } : null
+  };
+}
+
+export function getMercadoPeriodOptions(mercadoList) {
+  return getPeriodOptions(mercadoList);
+}
+
+export function getBodegaPeriodOptions(bodegaObsList, bodegaFSList) {
+  return getPeriodOptions([
+    ...(bodegaObsList || []),
+    ...(bodegaFSList || [])
+  ]);
+}
+
+export function getMercadoErrorDetails(mercadoList, periodFilter = {}) {
+  const requestedPeriod = getRequestedPeriod(periodFilter);
+  const filteredRecords = requestedPeriod
+    ? filterRecordsToPeriod(mercadoList || [], requestedPeriod)
+    : (mercadoList || []);
+
+  const total = filteredRecords.length;
+  const motivoMap = {};
+  const productMap = {};
+
+  filteredRecords.forEach(record => {
+    const motivo = cleanCell(record.motivo, 'NO ESPECIFICADO').toUpperCase();
+    const motivoKey = normalizeSearchText(motivo) || 'NO ESPECIFICADO';
+    const product = cleanCell(record.producto_esperado, 'Producto no especificado').toUpperCase();
+
+    if (!motivoMap[motivoKey]) {
+      motivoMap[motivoKey] = {
+        motivo,
+        classificationCounts: {},
+        productCounts: {},
+        locationCounts: {},
+        quantityByUnit: {},
+        count: 0
+      };
+    }
+
+    motivoMap[motivoKey].count += 1;
+    countMapValue(motivoMap[motivoKey].classificationCounts, cleanCell(record.tipo_clasificacion, classifyQualityError(record)));
+    countMapValue(motivoMap[motivoKey].productCounts, product);
+    countMapValue(motivoMap[motivoKey].locationCounts, cleanCell(record.lugar, 'Sin lugar'));
+    sumMapValue(motivoMap[motivoKey].quantityByUnit, cleanCell(record.unidad, 'unid.'), record.cantidad || 1);
+    countMapValue(productMap, product);
+  });
+
+  const breakdown = Object.values(motivoMap)
+    .map(item => {
+      const topProduct = getTopMapEntry(item.productCounts);
+      const topLocation = getTopMapEntry(item.locationCounts);
+      const topClassification = getTopMapEntry(item.classificationCounts);
+      const quantities = Object.entries(item.quantityByUnit)
+        .sort((a, b) => b[1] - a[1])
+        .map(([unit, value]) => `${value.toLocaleString()} ${unit}`)
+        .slice(0, 2)
+        .join(' / ');
+
+      return {
+        motivo: item.motivo,
+        classification: topClassification.label,
+        count: item.count,
+        percentage: total > 0 ? Number(((item.count / total) * 100).toFixed(1)) : 0,
+        quantity: quantities || `${item.count.toLocaleString()} reg.`,
+        topProduct,
+        topLocation
+      };
+    })
+    .sort((a, b) => b.count - a.count || a.motivo.localeCompare(b.motivo));
+
+  const topProducts = Object.entries(productMap)
+    .map(([product, count]) => ({ product, count }))
+    .sort((a, b) => b.count - a.count || a.product.localeCompare(b.product))
+    .slice(0, 8);
+
+  return {
+    total,
+    periodLabel: getPeriodLabel(periodFilter, requestedPeriod),
+    categoryCounts: countQualityCategories(filteredRecords),
+    breakdown,
+    topProducts,
+    uniqueProductsCount: Object.keys(productMap).length,
+    topReason: breakdown[0] || null
+  };
+}
+
 /**
  * Datos consolidados para la página principal de control interno de calidad.
  */
-export function getQualityDashboardData(mercadoList, bodegaObsList, bodegaFSList) {
+export function getQualityDashboardData(mercadoList, bodegaObsList, bodegaFSList, periodFilters = {}) {
   const records = getQualityErrorRecords(mercadoList, bodegaObsList, bodegaFSList);
-  const period = getComparablePeriod(records.mercado, records.bodega);
-  const mercadoComparable = filterRecordsToPeriod(records.mercado, period);
-  const bodegaComparable = filterRecordsToPeriod(records.bodega, period);
+  const fallbackPeriod = getComparablePeriod(records.mercado, records.bodega);
+  const mercadoFilter = periodFilters.mercado || periodFilters;
+  const bodegaFilter = periodFilters.bodega || periodFilters;
+  const mercadoPeriod = getRequestedPeriod(mercadoFilter) || fallbackPeriod;
+  const bodegaPeriod = getRequestedPeriod(bodegaFilter) || fallbackPeriod;
+  const mercadoComparable = filterRecordsToPeriod(records.mercado, mercadoPeriod);
+  const bodegaComparable = filterRecordsToPeriod(records.bodega, bodegaPeriod);
   const bodegaTotal = bodegaComparable.length;
   const reclamosTotal = mercadoComparable.length;
   const total = bodegaTotal + reclamosTotal;
   const prevencionPct = total > 0 ? Number(((bodegaTotal / total) * 100).toFixed(1)) : 0;
-  const comparisonYear = getLatestComparisonYear([...records.mercado, ...records.bodega]);
+  const comparisonYear = Number(mercadoFilter?.year || bodegaFilter?.year) || getLatestComparisonYear([...records.mercado, ...records.bodega]);
+  const comparisonPeriod = createYearPeriod(comparisonYear);
+  const bodegaComparison = filterRecordsToPeriod(records.bodega, comparisonPeriod);
+  const mercadoComparison = filterRecordsToPeriod(records.mercado, comparisonPeriod);
 
-  const bodegaMonthCounts = countRecordsByMonth(bodegaComparable, comparisonYear);
-  const mercadoMonthCounts = countRecordsByMonth(mercadoComparable, comparisonYear);
+  const bodegaMonthCounts = countRecordsByMonth(bodegaComparison, comparisonYear);
+  const mercadoMonthCounts = countRecordsByMonth(mercadoComparison, comparisonYear);
   const monthlyComparison = {
     year: comparisonYear,
     categories: QUALITY_MONTHS.map(item => item.label),
@@ -1105,8 +1297,8 @@ export function getQualityDashboardData(mercadoList, bodegaObsList, bodegaFSList
     mercadoSeries: QUALITY_MONTHS.map(item => mercadoMonthCounts[createMonthKey(comparisonYear, item.month)] || 0)
   };
 
-  const bodegaDayCounts = countRecordsByDay(bodegaComparable, comparisonYear);
-  const mercadoDayCounts = countRecordsByDay(mercadoComparable, comparisonYear);
+  const bodegaDayCounts = countRecordsByDay(bodegaComparison, comparisonYear);
+  const mercadoDayCounts = countRecordsByDay(mercadoComparison, comparisonYear);
   const dailyKeys = QUALITY_MONTHS.flatMap(({ month, label }) => {
     const days = getDaysInMonth(comparisonYear, month);
     return Array.from({ length: days }, (_, index) => ({
@@ -1134,6 +1326,46 @@ export function getQualityDashboardData(mercadoList, bodegaObsList, bodegaFSList
     dailyComparison,
     preparedErrors: countQualityCategories(bodegaComparable),
     marketErrors: countQualityCategories(mercadoComparable),
-    period
+    periods: {
+      mercado: mercadoPeriod,
+      bodega: bodegaPeriod
+    },
+    period: mercadoPeriod.start === bodegaPeriod.start && mercadoPeriod.end === bodegaPeriod.end
+      ? mercadoPeriod
+      : fallbackPeriod
+  };
+}
+
+export function getLatestComparableDateFilters(dataset) {
+  const bodegaRecords = [
+    ...(dataset?.bodega_observaciones || []),
+    ...(dataset?.bodega_faltantes_sobrantes || [])
+  ];
+  const mercadoRecords = dataset?.mercado || [];
+  const bodegaDates = getSortedValidDates(bodegaRecords);
+  const mercadoDates = getSortedValidDates(mercadoRecords);
+  const latestBodegaDate = bodegaDates[bodegaDates.length - 1];
+  const latestMercadoDate = mercadoDates[mercadoDates.length - 1];
+  const anchorDate = latestBodegaDate || latestMercadoDate || '';
+
+  if (!anchorDate) {
+    return {
+      mercadoDateStart: '',
+      mercadoDateEnd: '',
+      bodegaDateStart: '',
+      bodegaDateEnd: ''
+    };
+  }
+
+  const year = Number(anchorDate.slice(0, 4));
+  const month = Number(anchorDate.slice(5, 7));
+  const start = createDateKey(year, month, 1);
+  const end = createDateKey(year, month, getDaysInMonth(year, month));
+
+  return {
+    mercadoDateStart: start,
+    mercadoDateEnd: end,
+    bodegaDateStart: start,
+    bodegaDateEnd: end
   };
 }
