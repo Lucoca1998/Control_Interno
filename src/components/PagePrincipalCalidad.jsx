@@ -230,11 +230,12 @@ function ErrorComparisonColumn({ title, items, tone, maxValue, filter }) {
   );
 }
 
-function MercadoErrorsCard({ title, breakdown, filter }) {
+function MercadoErrorsCard({ title, breakdown, areaCounts, filter }) {
   const [showAll, setShowAll] = useState(false);
 
   const displayedMotivos = showAll ? breakdown : breakdown.slice(0, 5);
   const maxVal = breakdown.length > 0 ? breakdown[0].count : 1;
+  const totalReclamos = breakdown.reduce((acc, curr) => acc + curr.count, 0);
 
   const renderAreaBadge = (area) => {
     if (area === 'Producción') return <span className="badge badge-produccion" style={{ fontSize: '0.68rem', padding: '0.15rem 0.45rem' }}>Producción</span>;
@@ -251,9 +252,41 @@ function MercadoErrorsCard({ title, breakdown, filter }) {
             {title}
           </h3>
           <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#FF5252' }}>
-            {breakdown.reduce((acc, curr) => acc + curr.count, 0).toLocaleString()} reclamos
+            {totalReclamos.toLocaleString()} reclamos
           </span>
         </div>
+
+        {/* Porcentajes por Área en este recuadro (Mercado, Bodega, Producción, Comercialización) */}
+        {areaCounts && totalReclamos > 0 && (
+          <div style={{ 
+            display: 'flex', 
+            flexWrap: 'wrap', 
+            gap: '0.4rem', 
+            padding: '0.45rem 0.65rem', 
+            background: 'rgba(15, 20, 30, 0.75)', 
+            borderRadius: '8px', 
+            border: '1px solid var(--border-light)',
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}>
+            <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)' }}>PORCENTAJE POR ÁREA:</span>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+              <span className="badge badge-faltante" style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem' }}>
+                Mercado: <strong>{areaCounts.mercadoPct}%</strong> ({areaCounts.mercado})
+              </span>
+              <span className="badge badge-blue" style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem' }}>
+                Bodega: <strong>{areaCounts.bodegaPct}%</strong> ({areaCounts.bodega})
+              </span>
+              <span className="badge badge-produccion" style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem' }}>
+                Producción: <strong>{areaCounts.produccionPct}%</strong> ({areaCounts.produccion})
+              </span>
+              <span className="badge badge-comercializacion" style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem' }}>
+                Comercialización: <strong>{areaCounts.comercializacionPct}%</strong> ({areaCounts.comercializacion})
+              </span>
+            </div>
+          </div>
+        )}
+
         {filter}
       </div>
 
@@ -671,6 +704,7 @@ export default function PagePrincipalCalidad({ dataset }) {
         <MercadoErrorsCard
           title="ERRORES EN MERCADO"
           breakdown={mercadoCardDetails.breakdown}
+          areaCounts={mercadoCardDetails.areaCounts}
           filter={(
             <CardDateFilter
               mode={mercadoFilterMode}
