@@ -230,6 +230,79 @@ function ErrorComparisonColumn({ title, items, tone, maxValue, filter }) {
   );
 }
 
+function MercadoErrorsCard({ title, breakdown, filter }) {
+  const [showAll, setShowAll] = useState(false);
+
+  const displayedMotivos = showAll ? breakdown : breakdown.slice(0, 5);
+  const maxVal = breakdown.length > 0 ? breakdown[0].count : 1;
+
+  const renderAreaBadge = (area) => {
+    if (area === 'Producción') return <span className="badge badge-produccion" style={{ fontSize: '0.68rem', padding: '0.15rem 0.45rem' }}>Producción</span>;
+    if (area === 'Comercialización') return <span className="badge badge-comercializacion" style={{ fontSize: '0.68rem', padding: '0.15rem 0.45rem' }}>Comercialización</span>;
+    if (area === 'Bodega') return <span className="badge badge-blue" style={{ fontSize: '0.68rem', padding: '0.15rem 0.45rem' }}>Bodega</span>;
+    return <span className="badge badge-faltante" style={{ fontSize: '0.68rem', padding: '0.15rem 0.45rem' }}>Mercado</span>;
+  };
+
+  return (
+    <div className="glass-card quality-error-column">
+      <div className="quality-error-column-header" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.75rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.1rem', color: '#fff' }}>
+            {title}
+          </h3>
+          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#FF5252' }}>
+            {breakdown.reduce((acc, curr) => acc + curr.count, 0).toLocaleString()} reclamos
+          </span>
+        </div>
+        {filter}
+      </div>
+
+      <div className="quality-error-bars">
+        {displayedMotivos.length > 0 ? (
+          displayedMotivos.map(item => {
+            const width = maxVal > 0 ? Math.max((item.count / maxVal) * 100, 4) : 0;
+
+            return (
+              <div className="quality-error-row" key={item.motivo} style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.3rem', padding: '0.45rem 0', borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: '170px' }}>
+                    <strong style={{ fontSize: '0.82rem', color: '#fff' }}>{item.motivo}</strong>
+                    {renderAreaBadge(item.mainArea)}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <strong style={{ color: '#FF5252', fontSize: '0.85rem' }}>{item.count.toLocaleString()}</strong>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>({item.percentage}%)</span>
+                  </div>
+                </div>
+                <div className="quality-error-track">
+                  <div className="quality-error-fill red" style={{ width: `${width}%` }} />
+                </div>
+              </div>
+            );
+          })
+        ) : (
+          <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+            No hay reclamos de mercado para este filtro
+          </div>
+        )}
+      </div>
+
+      {breakdown.length > 5 && (
+        <div style={{ textAlign: 'center', padding: '0.65rem 0 0.25rem 0', borderTop: '1px solid var(--border-light)', marginTop: '0.5rem' }}>
+          <button
+            type="button"
+            className="btn btn-outline"
+            style={{ width: '100%', fontSize: '0.78rem', padding: '0.35rem' }}
+            onClick={() => setShowAll(prev => !prev)}
+          >
+            {showAll ? 'Ver menos ▲' : `Ver todo (${breakdown.length} motivos) ▼`}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function PagePrincipalCalidad({ dataset }) {
   const [comparisonMode, setComparisonMode] = useState('mensual');
   
@@ -314,6 +387,10 @@ export default function PagePrincipalCalidad({ dataset }) {
   const mercadoDetails = useMemo(() => (
     getMercadoErrorDetails(mercado, activeDetallesFilter)
   ), [mercado, activeDetallesFilter]);
+
+  const mercadoCardDetails = useMemo(() => (
+    getMercadoErrorDetails(mercado, activeMercadoFilter)
+  ), [mercado, activeMercadoFilter]);
 
   const persistPhotos = (nextPhotos) => {
     try {
@@ -590,12 +667,10 @@ export default function PagePrincipalCalidad({ dataset }) {
           )}
         />
 
-        {/* 2. ERRORES EN MERCADO - MULTI-FECHAS Y MES */}
-        <ErrorComparisonColumn
+        {/* 2. ERRORES EN MERCADO - MOTIVO REPORTE Y ÁREA CON MÚLTIPLES FECHAS Y VER TODO */}
+        <MercadoErrorsCard
           title="ERRORES EN MERCADO"
-          items={dashboard.marketErrors}
-          maxValue={maxErrorValue}
-          tone="red"
+          breakdown={mercadoCardDetails.breakdown}
           filter={(
             <CardDateFilter
               mode={mercadoFilterMode}
