@@ -1,6 +1,11 @@
 import { useMemo, useState } from 'react';
 import Chart from 'react-apexcharts';
-import { getBodegaPeriodOptions, getMercadoErrorDetails, getMercadoPeriodOptions, getQualityDashboardData } from '../utils/dataProcessor';
+import { 
+  getBodegaPeriodOptions, 
+  getMercadoErrorDetails, 
+  getMercadoPeriodOptions, 
+  getQualityDashboardData 
+} from '../utils/dataProcessor';
 import {
   AlertTriangle,
   BarChart3,
@@ -12,7 +17,9 @@ import {
   Percent,
   ShieldCheck,
   UploadCloud,
-  X
+  X,
+  Calendar,
+  Filter
 } from 'lucide-react';
 
 const PHOTO_STORAGE_KEY = 'coca_quality_error_photos_v1';
@@ -61,37 +68,134 @@ function resolveSelectedPeriod(period, options) {
   return { year, month, months };
 }
 
-function PeriodFilter({ selected, months, years, onYearChange, onMonthChange, prefix }) {
-  return (
-    <div className="quality-card-period-filter">
-      <label>
-        Año
-        <select
-          className="form-control"
-          value={selected.year}
-          onChange={(event) => onYearChange(event.target.value)}
-          aria-label={`${prefix} año`}
-        >
-          {years.map(year => (
-            <option value={year} key={year}>{year}</option>
-          ))}
-        </select>
-      </label>
+// Multi-Date / Period Card Filter Component
+function CardDateFilter({ 
+  mode, 
+  setMode, 
+  selectedPeriod, 
+  months, 
+  years, 
+  onYearChange, 
+  onMonthChange, 
+  selectedDates, 
+  setSelectedDates, 
+  availableDates, 
+  prefix 
+}) {
+  const toggleDate = (dt) => {
+    setSelectedDates(prev => prev.includes(dt) ? prev.filter(d => d !== dt) : [...prev, dt]);
+  };
 
-      <label>
-        Mes
-        <select
-          className="form-control"
-          value={selected.month}
-          onChange={(event) => onMonthChange(event.target.value)}
-          aria-label={`${prefix} mes`}
-        >
-          <option value="TODOS">Todos</option>
-          {months.map(month => (
-            <option value={month.value} key={month.value}>{month.label}</option>
-          ))}
-        </select>
-      </label>
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', background: 'rgba(15, 20, 30, 0.7)', padding: '0.5rem 0.75rem', borderRadius: '10px', border: '1px solid var(--border-light)' }}>
+      {/* Mode Toggle Buttons */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.4rem' }}>
+        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)' }}>FILTRAR POR:</span>
+        <div style={{ display: 'flex', gap: '0.3rem' }}>
+          <button
+            type="button"
+            className={`btn ${mode === 'period' ? 'btn-primary' : 'btn-outline'}`}
+            style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem' }}
+            onClick={() => setMode('period')}
+          >
+            Mes
+          </button>
+          <button
+            type="button"
+            className={`btn ${mode === 'multidate' ? 'btn-primary' : 'btn-outline'}`}
+            style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem' }}
+            onClick={() => setMode('multidate')}
+          >
+            Múltiples Fechas {selectedDates.length > 0 && `(${selectedDates.length})`}
+          </button>
+        </div>
+      </div>
+
+      {mode === 'period' ? (
+        <div className="quality-card-period-filter" style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
+          <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+            Año:
+            <select
+              className="form-control"
+              style={{ fontSize: '0.75rem', padding: '0.2rem 0.4rem' }}
+              value={selectedPeriod.year}
+              onChange={(event) => onYearChange(event.target.value)}
+              aria-label={`${prefix} año`}
+            >
+              {years.map(year => (
+                <option value={year} key={year}>{year}</option>
+              ))}
+            </select>
+          </label>
+
+          <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+            Mes:
+            <select
+              className="form-control"
+              style={{ fontSize: '0.75rem', padding: '0.2rem 0.4rem' }}
+              value={selectedPeriod.month}
+              onChange={(event) => onMonthChange(event.target.value)}
+              aria-label={`${prefix} mes`}
+            >
+              <option value="TODOS">Todos</option>
+              {months.map(month => (
+                <option value={month.value} key={month.value}>{month.label}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginTop: '0.25rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.7rem', color: '#60A5FA', fontWeight: 600 }}>
+              {selectedDates.length === 0 ? 'Todas las fechas' : `${selectedDates.length} fechas seleccionadas`}
+            </span>
+            <div style={{ display: 'flex', gap: '0.25rem' }}>
+              <button
+                type="button"
+                className="btn btn-outline"
+                style={{ padding: '0.15rem 0.4rem', fontSize: '0.65rem' }}
+                onClick={() => setSelectedDates([...availableDates])}
+              >
+                Todas ({availableDates.length})
+              </button>
+              <button
+                type="button"
+                className="btn btn-outline"
+                style={{ padding: '0.15rem 0.4rem', fontSize: '0.65rem' }}
+                onClick={() => setSelectedDates([])}
+              >
+                Limpiar
+              </button>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', maxHeight: '80px', overflowY: 'auto', paddingRight: '0.25rem' }}>
+            {availableDates.map(dt => {
+              const isSelected = selectedDates.includes(dt);
+              return (
+                <button
+                  key={dt}
+                  type="button"
+                  onClick={() => toggleDate(dt)}
+                  style={{
+                    padding: '0.15rem 0.45rem',
+                    borderRadius: '12px',
+                    fontSize: '0.68rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    border: isSelected ? '1px solid #E61D2B' : '1px solid var(--border-light)',
+                    background: isSelected ? 'rgba(230, 29, 43, 0.35)' : 'rgba(15, 20, 30, 0.7)',
+                    color: isSelected ? '#fff' : 'var(--text-muted)'
+                  }}
+                >
+                  {isSelected ? '✓ ' : ''}{formatDateLabel(dt)}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -99,8 +203,10 @@ function PeriodFilter({ selected, months, years, onYearChange, onMonthChange, pr
 function ErrorComparisonColumn({ title, items, tone, maxValue, filter }) {
   return (
     <div className="glass-card quality-error-column">
-      <div className="quality-error-column-header">
-        <h3>{title}</h3>
+      <div className="quality-error-column-header" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.75rem' }}>
+        <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.1rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          {title}
+        </h3>
         {filter}
       </div>
       <div className="quality-error-bars">
@@ -126,64 +232,88 @@ function ErrorComparisonColumn({ title, items, tone, maxValue, filter }) {
 
 export default function PagePrincipalCalidad({ dataset }) {
   const [comparisonMode, setComparisonMode] = useState('mensual');
-  const [mercadoPeriod, setMercadoPeriod] = useState({ year: '', month: '' });
+  
+  // 1. ERRORES EN PREPARADO (Bodega) filter state (Supports Multi-Date & Month)
+  const [bodegaFilterMode, setBodegaFilterMode] = useState('period'); // 'period' | 'multidate'
   const [bodegaPeriod, setBodegaPeriod] = useState({ year: '', month: '' });
+  const [selectedBodegaDates, setSelectedBodegaDates] = useState([]);
+
+  // 2. ERRORES EN MERCADO filter state (Supports Multi-Date & Month)
+  const [mercadoFilterMode, setMercadoFilterMode] = useState('period'); // 'period' | 'multidate'
+  const [mercadoPeriod, setMercadoPeriod] = useState({ year: '', month: '' });
+  const [selectedMercadoDates, setSelectedMercadoDates] = useState([]);
+
+  // 3. DETALLE DE ERRORES POR ÁREA filter state (SOLO POR MES)
+  const [detallesMonthFilter, setDetallesMonthFilter] = useState('TODOS');
+
   const [photos, setPhotos] = useState(loadStoredPhotos);
   const [photoNotice, setPhotoNotice] = useState('');
-  
-  // Multi-date selection state
-  const [dateMode, setDateMode] = useState('period'); // 'period' | 'multidate'
-  const [selectedDates, setSelectedDates] = useState([]);
 
   const { mercado, bodega_observaciones, bodega_faltantes_sobrantes } = dataset;
 
-  // Available unique dates
-  const availableDatesList = useMemo(() => {
+  // Available unique dates for Bodega
+  const availableBodegaDates = useMemo(() => {
     const set = new Set();
-    (mercado || []).forEach(m => { if (m.fecha) set.add(m.fecha); });
     (bodega_observaciones || []).forEach(b => { if (b.fecha) set.add(b.fecha); });
     (bodega_faltantes_sobrantes || []).forEach(b => { if (b.fecha) set.add(b.fecha); });
     return Array.from(set).sort().reverse();
-  }, [mercado, bodega_observaciones, bodega_faltantes_sobrantes]);
+  }, [bodega_observaciones, bodega_faltantes_sobrantes]);
 
-  const toggleDateSelection = (dt) => {
-    setSelectedDates(prev => 
-      prev.includes(dt) ? prev.filter(d => d !== dt) : [...prev, dt]
-    );
-  };
+  // Available unique dates for Mercado
+  const availableMercadoDates = useMemo(() => {
+    const set = new Set();
+    (mercado || []).forEach(m => { if (m.fecha) set.add(m.fecha); });
+    return Array.from(set).sort().reverse();
+  }, [mercado]);
 
   const mercadoPeriodOptions = useMemo(() => getMercadoPeriodOptions(mercado), [mercado]);
   const bodegaPeriodOptions = useMemo(() => (
     getBodegaPeriodOptions(bodega_observaciones, bodega_faltantes_sobrantes)
   ), [bodega_observaciones, bodega_faltantes_sobrantes]);
+
   const selectedMercado = resolveSelectedPeriod(mercadoPeriod, mercadoPeriodOptions);
   const selectedBodega = resolveSelectedPeriod(bodegaPeriod, bodegaPeriodOptions);
-  
-  const activeMercadoPeriodFilter = useMemo(() => {
-    if (dateMode === 'multidate' && selectedDates.length > 0) {
-      return { selectedDates };
+
+  // Active filters
+  const activeBodegaFilter = useMemo(() => {
+    if (bodegaFilterMode === 'multidate' && selectedBodegaDates.length > 0) {
+      return { selectedDates: selectedBodegaDates };
+    }
+    return {
+      year: selectedBodega.year,
+      month: selectedBodega.month
+    };
+  }, [bodegaFilterMode, selectedBodegaDates, selectedBodega.year, selectedBodega.month]);
+
+  const activeMercadoFilter = useMemo(() => {
+    if (mercadoFilterMode === 'multidate' && selectedMercadoDates.length > 0) {
+      return { selectedDates: selectedMercadoDates };
     }
     return {
       year: selectedMercado.year,
       month: selectedMercado.month
     };
-  }, [dateMode, selectedDates, selectedMercado.year, selectedMercado.month]);
+  }, [mercadoFilterMode, selectedMercadoDates, selectedMercado.year, selectedMercado.month]);
 
-  const activeBodegaPeriodFilter = useMemo(() => ({
-    year: selectedBodega.year,
-    month: selectedBodega.month
-  }), [selectedBodega.year, selectedBodega.month]);
+  // Table filter: ONLY BY MONTH
+  const activeDetallesFilter = useMemo(() => {
+    if (detallesMonthFilter === 'TODOS' || !detallesMonthFilter) {
+      return { year: '', month: 'TODOS' };
+    }
+    const [yearStr, monthStr] = detallesMonthFilter.split('-');
+    return { year: yearStr, month: monthStr };
+  }, [detallesMonthFilter]);
 
   const dashboard = useMemo(() => (
     getQualityDashboardData(mercado, bodega_observaciones, bodega_faltantes_sobrantes, {
-      mercado: activeMercadoPeriodFilter,
-      bodega: activeBodegaPeriodFilter
+      mercado: activeMercadoFilter,
+      bodega: activeBodegaFilter
     })
-  ), [mercado, bodega_observaciones, bodega_faltantes_sobrantes, activeMercadoPeriodFilter, activeBodegaPeriodFilter]);
+  ), [mercado, bodega_observaciones, bodega_faltantes_sobrantes, activeMercadoFilter, activeMercadoFilter]);
 
   const mercadoDetails = useMemo(() => (
-    getMercadoErrorDetails(mercado, activeMercadoPeriodFilter)
-  ), [mercado, activeMercadoPeriodFilter]);
+    getMercadoErrorDetails(mercado, activeDetallesFilter)
+  ), [mercado, activeDetallesFilter]);
 
   const persistPhotos = (nextPhotos) => {
     try {
@@ -381,6 +511,7 @@ export default function PagePrincipalCalidad({ dataset }) {
         })}
       </section>
 
+      {/* COMPARACIÓN POR MESES Y DÍAS */}
       <section className="glass-card">
         <div className="card-header quality-card-header">
           <div>
@@ -433,131 +564,89 @@ export default function PagePrincipalCalidad({ dataset }) {
         </div>
       </section>
 
+      {/* CUADROS DE ERRORES EN PREPARADO (BODEGA) Y ERRORES EN MERCADO CON SELECCIÓN MÚLTIPLE DE FECHAS */}
       <section className="quality-error-section">
+        
+        {/* 1. ERRORES EN PREPARADO (BODEGA) - MULTI-FECHAS Y MES */}
         <ErrorComparisonColumn
-          title="ERRORES EN PREPARADO"
+          title="ERRORES EN PREPARADO (BODEGA)"
           items={dashboard.preparedErrors}
           maxValue={maxErrorValue}
           tone="green"
           filter={(
-            <PeriodFilter
-              selected={selectedBodega}
+            <CardDateFilter
+              mode={bodegaFilterMode}
+              setMode={setBodegaFilterMode}
+              selectedPeriod={selectedBodega}
               months={selectedBodega.months}
               years={bodegaPeriodOptions.years}
               onYearChange={handleBodegaYearChange}
               onMonthChange={(month) => setBodegaPeriod(prev => ({ ...prev, month }))}
+              selectedDates={selectedBodegaDates}
+              setSelectedDates={setSelectedBodegaDates}
+              availableDates={availableBodegaDates}
               prefix="Errores en preparado"
             />
           )}
         />
+
+        {/* 2. ERRORES EN MERCADO - MULTI-FECHAS Y MES */}
         <ErrorComparisonColumn
-          title={`ERRORES EN MERCADO - ${mercadoDetails.periodLabel.toUpperCase()}`}
-          items={mercadoDetails.categoryCounts}
+          title="ERRORES EN MERCADO"
+          items={dashboard.marketErrors}
           maxValue={maxErrorValue}
           tone="red"
           filter={(
-            <PeriodFilter
-              selected={selectedMercado}
+            <CardDateFilter
+              mode={mercadoFilterMode}
+              setMode={setMercadoFilterMode}
+              selectedPeriod={selectedMercado}
               months={selectedMercado.months}
               years={mercadoPeriodOptions.years}
               onYearChange={handleMercadoYearChange}
               onMonthChange={(month) => setMercadoPeriod(prev => ({ ...prev, month }))}
+              selectedDates={selectedMercadoDates}
+              setSelectedDates={setSelectedMercadoDates}
+              availableDates={availableMercadoDates}
               prefix="Errores en mercado"
             />
           )}
         />
       </section>
 
-      {/* DETALLE DE ERRORES CON BODEGA, PRODUCCIÓN, COMERCIALIZACIÓN Y MERCADO + MULTI-FECHAS */}
+      {/* DETALLE DE ERRORES POR ÁREA (BODEGA, PRODUCCIÓN, COMERCIALIZACIÓN & MERCADO) - FILTRO EXCLUSIVO POR MES */}
       <section className="glass-card">
-        <div className="card-header quality-card-header" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '1rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-            <div>
-              <div className="card-title">
-                <ClipboardList size={20} color="#E61D2B" />
-                Detalle de Errores por Área (Bodega, Producción, Comercialización & Mercado)
-              </div>
-              <p className="quality-card-caption">
-                Filtro actual: <strong style={{ color: '#fff' }}>{mercadoDetails.periodLabel}</strong> ({mercadoDetails.total.toLocaleString()} reclamos)
-              </p>
+        <div className="card-header quality-card-header" style={{ flexWrap: 'wrap', gap: '1rem' }}>
+          <div>
+            <div className="card-title">
+              <ClipboardList size={20} color="#E61D2B" />
+              Detalle de Errores por Área (Bodega, Producción, Comercialización & Mercado)
             </div>
-
-            {/* Mode Switcher: Period vs Multi-Date */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(15, 20, 30, 0.8)', padding: '0.35rem 0.5rem', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
-              <button
-                type="button"
-                className={`btn ${dateMode === 'period' ? 'btn-primary' : 'btn-outline'}`}
-                style={{ padding: '0.35rem 0.75rem', fontSize: '0.78rem' }}
-                onClick={() => setDateMode('period')}
-              >
-                Filtro por Mes
-              </button>
-              <button
-                type="button"
-                className={`btn ${dateMode === 'multidate' ? 'btn-primary' : 'btn-outline'}`}
-                style={{ padding: '0.35rem 0.75rem', fontSize: '0.78rem' }}
-                onClick={() => setDateMode('multidate')}
-              >
-                Escoger Múltiples Fechas {selectedDates.length > 0 && `(${selectedDates.length})`}
-              </button>
-            </div>
+            <p className="quality-card-caption">
+              Análisis consolidado mensual por área de responsabilidad | Periodo: <strong style={{ color: '#fff' }}>{mercadoDetails.periodLabel}</strong> ({mercadoDetails.total.toLocaleString()} reclamos)
+            </p>
           </div>
 
-          {/* Multi-Date Selection Toolbar */}
-          {dateMode === 'multidate' && (
-            <div style={{ padding: '0.85rem 1rem', background: 'rgba(230, 29, 43, 0.08)', borderRadius: '10px', border: '1px solid rgba(230, 29, 43, 0.25)', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#FF5252' }}>
-                  📅 SELECCIONA LAS FECHAS A AUDITAR:
-                </span>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <button
-                    type="button"
-                    className="btn btn-outline"
-                    style={{ padding: '0.2rem 0.5rem', fontSize: '0.72rem' }}
-                    onClick={() => setSelectedDates([...availableDatesList])}
-                  >
-                    Seleccionar Todas ({availableDatesList.length})
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-outline"
-                    style={{ padding: '0.2rem 0.5rem', fontSize: '0.72rem' }}
-                    onClick={() => setSelectedDates([])}
-                  >
-                    Limpiar
-                  </button>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', maxHeight: '120px', overflowY: 'auto', paddingRight: '0.5rem' }}>
-                {availableDatesList.map(dt => {
-                  const isSelected = selectedDates.includes(dt);
-                  const formatted = formatDateLabel(dt);
-                  return (
-                    <button
-                      key={dt}
-                      type="button"
-                      onClick={() => toggleDateSelection(dt)}
-                      style={{
-                        padding: '0.25rem 0.6rem',
-                        borderRadius: '20px',
-                        fontSize: '0.75rem',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        border: isSelected ? '1px solid #E61D2B' : '1px solid var(--border-light)',
-                        background: isSelected ? 'rgba(230, 29, 43, 0.3)' : 'rgba(15, 20, 30, 0.6)',
-                        color: isSelected ? '#fff' : 'var(--text-muted)',
-                        transition: 'all 0.15s ease'
-                      }}
-                    >
-                      {isSelected ? '✓ ' : ''}{formatted}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+          {/* FILTRO EXCLUSIVO POR MES */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', background: 'rgba(15, 20, 30, 0.8)', padding: '0.4rem 0.8rem', borderRadius: '10px', border: '1px solid var(--border-light)' }}>
+            <Calendar size={16} color="#E61D2B" />
+            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)' }}>FILTRAR POR MES:</span>
+            <select
+              className="form-control"
+              style={{ fontSize: '0.85rem', fontWeight: 600, padding: '0.35rem 0.75rem', cursor: 'pointer', minWidth: '170px' }}
+              value={detallesMonthFilter}
+              onChange={(e) => setDetallesMonthFilter(e.target.value)}
+            >
+              <option value="TODOS">Todos los Meses</option>
+              {mercadoPeriodOptions.years.flatMap(yr => 
+                (mercadoPeriodOptions.monthsByYear[yr] || []).map(m => (
+                  <option key={`${yr}-${m.value}`} value={`${yr}-${m.value}`}>
+                    {m.label} {yr}
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
         </div>
 
         <div className="card-body quality-market-detail-body">
@@ -617,7 +706,7 @@ export default function PagePrincipalCalidad({ dataset }) {
                     <th style={{ color: '#FBBF24' }}>Comercialización</th>
                     <th style={{ color: '#FF5252' }}>Mercado</th>
                     <th>Total Reclamos</th>
-                    <th>%</th>
+                    <th>% Total</th>
                     <th>Producto más repetido</th>
                     <th>Lugar</th>
                   </tr>
@@ -660,7 +749,7 @@ export default function PagePrincipalCalidad({ dataset }) {
                   ) : (
                     <tr>
                       <td colSpan="10" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
-                        No hay reclamos registrados para los filtros o fechas seleccionadas
+                        No hay reclamos registrados para el mes seleccionado
                       </td>
                     </tr>
                   )}
@@ -685,6 +774,7 @@ export default function PagePrincipalCalidad({ dataset }) {
         </div>
       </section>
 
+      {/* FOTOS DE ERRORES */}
       <section className="glass-card">
         <div className="card-header">
           <div className="card-title">

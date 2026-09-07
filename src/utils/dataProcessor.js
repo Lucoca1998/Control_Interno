@@ -1124,12 +1124,33 @@ function getComparablePeriod(mercadoRecords, bodegaRecords) {
 }
 
 function filterRecordsToPeriod(records, period) {
-  if (!period?.start || !period?.end) return records;
-  return records.filter(record => (
-    VALID_DATE_RE.test(record.fecha) &&
-    record.fecha >= period.start &&
-    record.fecha <= period.end
-  ));
+  if (!period) return records || [];
+
+  if (Array.isArray(period.selectedDates) && period.selectedDates.length > 0) {
+    const datesSet = new Set(period.selectedDates);
+    return (records || []).filter(r => VALID_DATE_RE.test(r.fecha) && datesSet.has(r.fecha));
+  }
+
+  if (period.start && period.end) {
+    const from = period.start <= period.end ? period.start : period.end;
+    const to = period.start <= period.end ? period.end : period.start;
+    return (records || []).filter(r => (
+      VALID_DATE_RE.test(r.fecha) &&
+      r.fecha >= from &&
+      r.fecha <= to
+    ));
+  }
+
+  const req = getRequestedPeriod(period);
+  if (req && req.start && req.end) {
+    return (records || []).filter(r => (
+      VALID_DATE_RE.test(r.fecha) &&
+      r.fecha >= req.start &&
+      r.fecha <= req.end
+    ));
+  }
+
+  return records || [];
 }
 
 function getPeriodLabel(periodFilter, period) {
