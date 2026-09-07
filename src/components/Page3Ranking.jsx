@@ -7,6 +7,7 @@ import {
   Calendar,
   Box
 } from 'lucide-react';
+import EditableTitle from './EditableTitle';
 
 export default function Page3Ranking({ filteredData }) {
   const { mercado, bodega_camiones, bodega_observaciones, bodega_faltantes_sobrantes } = filteredData;
@@ -42,9 +43,7 @@ export default function Page3Ranking({ filteredData }) {
       
       {/* Page Header */}
       <div>
-        <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.75rem', fontWeight: 800, color: '#fff' }}>
-          Ranking de Asesores & Control de Productos Críticos
-        </h1>
+        <EditableTitle id="pag3_main_header" defaultTitle="Ranking de Asesores & Control de Productos Críticos" tag="h1" style={{ fontFamily: 'var(--font-heading)', fontSize: '1.75rem', fontWeight: 800, color: '#fff', margin: 0 }} />
         <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
           Clasificación de usuarios, productos críticos y evolución diaria de incidencias.
         </p>
@@ -58,7 +57,7 @@ export default function Page3Ranking({ filteredData }) {
           <div className="card-header">
             <div className="card-title">
               <Trophy size={20} color="#FBBF24" />
-              TOP 5: Asesores / Usuarios con Mayor Volumen de Registro
+              <EditableTitle id="pag3_top5_asesores_title" defaultTitle="TOP 5: Asesores / Usuarios con Mayor Volumen de Registro" tag="span" />
             </div>
           </div>
           <div className="card-body">
@@ -115,7 +114,7 @@ export default function Page3Ranking({ filteredData }) {
           <div className="card-header">
             <div className="card-title">
               <Box size={20} color="#E61D2B" />
-              TOP 5: Productos Críticos con Más Faltantes / Sobrantes
+              <EditableTitle id="pag3_top5_productos_title" defaultTitle="TOP 5: Productos Críticos con Más Faltantes / Sobrantes" tag="span" />
             </div>
             <span className="badge badge-faltante">EXCLUSIVO BODEGA</span>
           </div>
@@ -178,7 +177,7 @@ export default function Page3Ranking({ filteredData }) {
           <div className="card-header">
             <div className="card-title">
               <Calendar size={20} color="#E61D2B" />
-              Gráfico de líneas: Mercado vs Bodega por día
+              <EditableTitle id="pag3_trend_chart_title" defaultTitle="Gráfico de líneas: Mercado vs Bodega por día" tag="span" />
             </div>
           </div>
           <div className="card-body">
@@ -200,7 +199,8 @@ export default function Page3Ranking({ filteredData }) {
         <div className="card-header">
           <div className="card-title">
             <Users size={20} color="#60A5FA" />
-            Tabla de Desempeño por Asesor / Usuario ({allAdvisors.length} registrados)
+            <EditableTitle id="pag3_advisor_table_title" defaultTitle="Tabla de Desempeño por Asesor / Usuario" tag="span" />
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 400 }}>({allAdvisors.length} registrados)</span>
           </div>
         </div>
         <div className="card-body" style={{ padding: 0 }}>

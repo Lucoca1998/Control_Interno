@@ -42,13 +42,24 @@ export default function App() {
           throw new Error(`Status HTTP: ${response.status}`);
         }
         const data = await response.json();
-        setRawDataset({
+        const initialFiles = data.loaded_files && data.loaded_files.length > 0 ? data.loaded_files : [
+          {
+            fileName: 'Cruces y Faltantes Mercado.xlsx',
+            fileType: 'Mercado (Cruces & Reclamos)',
+            recordsCount: (data.mercado || []).length,
+            startDate: 'Enero 2026',
+            endDate: 'Actualidad'
+          }
+        ];
+        const nextData = {
           ...data,
+          loaded_files: initialFiles,
           available_dates: calculateAvailableDates(data)
-        });
+        };
+        setRawDataset(nextData);
         setFilters(prev => ({
           ...prev,
-          ...getLatestComparableDateFilters(data)
+          ...getLatestComparableDateFilters(nextData)
         }));
       } catch (err) {
         console.error("Error loading data.json:", err);
@@ -98,15 +109,45 @@ export default function App() {
         bodega_observaciones: [...observacionesAdded, ...(prev.bodega_observaciones || [])],
         bodega_faltantes_sobrantes: [...faltantesAdded, ...(prev.bodega_faltantes_sobrantes || [])],
         loaded_files: [
-        {
-          fileName: newParsedData.fileName || 'Archivo Subido',
-          fileType: mercadoAdded.length > 0 ? 'Mercado' : 'Bodega Informe',
-          recordsCount,
-          startDate: uploadedDates[0] || 'Nuevo',
-          endDate: uploadedDates[uploadedDates.length - 1] || 'Nuevo'
-        },
-        ...(prev.loaded_files || [])
+          {
+            fileName: newParsedData.fileName || 'Archivo Subido',
+            fileType: mercadoAdded.length > 0 ? 'Mercado' : 'Bodega Informe',
+            recordsCount,
+            startDate: uploadedDates[0] || 'Nuevo',
+            endDate: uploadedDates[uploadedDates.length - 1] || 'Nuevo'
+          },
+          ...(prev.loaded_files || []).filter(f => f.fileName !== (newParsedData.fileName || 'Archivo Subido'))
         ]
+      };
+
+      return {
+        ...nextDataset,
+        available_dates: calculateAvailableDates(nextDataset)
+      };
+    });
+  };
+
+  const handleFileRemoved = (fileName) => {
+    setRawDataset(prev => {
+      const isCrucesDefault = fileName === 'Cruces y Faltantes Mercado.xlsx' || fileName.toLowerCase().includes('cruces');
+      
+      const nextMercado = (prev.mercado || []).filter(item => {
+        if (item.source_file) return item.source_file !== fileName;
+        if (isCrucesDefault) return false;
+        return true;
+      });
+
+      const nextCamiones = (prev.bodega_camiones || []).filter(item => item.source_file !== fileName);
+      const nextObservaciones = (prev.bodega_observaciones || []).filter(item => item.source_file !== fileName);
+      const nextFaltantes = (prev.bodega_faltantes_sobrantes || []).filter(item => item.source_file !== fileName);
+      const nextFiles = (prev.loaded_files || []).filter(file => file.fileName !== fileName);
+
+      const nextDataset = {
+        mercado: nextMercado,
+        bodega_camiones: nextCamiones,
+        bodega_observaciones: nextObservaciones,
+        bodega_faltantes_sobrantes: nextFaltantes,
+        loaded_files: nextFiles
       };
 
       return {
@@ -242,6 +283,7 @@ export default function App() {
         onClose={() => setIsUploadOpen(false)}
         onDataUploaded={handleDataUploaded}
         onDatesDeleted={handleDatesDeleted}
+        onFileRemoved={handleFileRemoved}
         loadedFiles={rawDataset.loaded_files}
         availableDates={rawDataset.available_dates}
       />

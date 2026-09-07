@@ -21,6 +21,7 @@ import {
   Calendar,
   Filter
 } from 'lucide-react';
+import EditableTitle from './EditableTitle';
 
 const PHOTO_STORAGE_KEY = 'coca_quality_error_photos_v1';
 
@@ -588,7 +589,7 @@ export default function PagePrincipalCalidad({ dataset }) {
     <div className="quality-page animate-fade-in">
       <section className="quality-page-header">
         <div>
-          <h1>Dashboard de Control Interno de Calidad</h1>
+          <EditableTitle id="pag_principal_main_header" defaultTitle="Dashboard de Control Interno de Calidad" tag="h1" />
           <p>Indicadores conectados a los datos cargados de bodega, producción y reclamos de mercado.</p>
         </div>
         <div className="quality-status-badges">
@@ -624,7 +625,7 @@ export default function PagePrincipalCalidad({ dataset }) {
           <div>
             <div className="card-title">
               <BarChart3 size={20} color="#E61D2B" />
-              Menú de navegación
+              <EditableTitle id="pag_principal_nav_menu_title" defaultTitle="Menú de navegación" tag="span" />
             </div>
             <p className="quality-card-caption">Comparación por meses {dashboard.monthlyComparison.year}</p>
           </div>
@@ -676,7 +677,7 @@ export default function PagePrincipalCalidad({ dataset }) {
         
         {/* 1. ERRORES EN PREPARADO (BODEGA) - MULTI-FECHAS Y MES */}
         <ErrorComparisonColumn
-          title="ERRORES EN PREPARADO (BODEGA)"
+          title={<EditableTitle id="pag_principal_errores_preparado" defaultTitle="ERRORES EN PREPARADO (BODEGA)" tag="span" />}
           items={dashboard.preparedErrors}
           maxValue={maxErrorValue}
           tone="green"
@@ -699,7 +700,7 @@ export default function PagePrincipalCalidad({ dataset }) {
 
         {/* 2. ERRORES EN MERCADO - MOTIVO REPORTE Y ÁREA CON MÚLTIPLES FECHAS Y VER TODO */}
         <MercadoErrorsCard
-          title="ERRORES EN MERCADO"
+          title={<EditableTitle id="pag_principal_errores_mercado" defaultTitle="ERRORES EN MERCADO" tag="span" />}
           breakdown={mercadoCardDetails.breakdown}
           areaCounts={mercadoCardDetails.areaCounts}
           filter={(
@@ -726,7 +727,7 @@ export default function PagePrincipalCalidad({ dataset }) {
           <div>
             <div className="card-title">
               <ClipboardList size={20} color="#E61D2B" />
-              Detalle de Errores por Área (Bodega, Producción & Mercado)
+              <EditableTitle id="pag_principal_detalle_errores_area" defaultTitle="Detalle de Errores por Área (Bodega, Producción & Mercado)" tag="span" />
             </div>
             <p className="quality-card-caption">
               Análisis consolidado mensual por área de responsabilidad | Periodo: <strong style={{ color: '#fff' }}>{mercadoDetails.periodLabel}</strong> ({mercadoDetails.total.toLocaleString()} reclamos)
@@ -861,7 +862,7 @@ export default function PagePrincipalCalidad({ dataset }) {
         <div className="card-header">
           <div className="card-title">
             <Camera size={20} color="#E61D2B" />
-            FOTOS DE ERRORES
+            <EditableTitle id="pag_principal_fotos_errores" defaultTitle="FOTOS DE ERRORES" tag="span" />
           </div>
         </div>
         <div className="card-body">

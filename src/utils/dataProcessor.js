@@ -778,6 +778,7 @@ export async function parseUploadedExcelFile(file) {
         if (isBodega) {
           if (camionesSheet) {
             newBodegaCamiones = readRows(camionesSheet).map(row => ({
+              source_file: file.name,
               sucursal: getFirstValue(row, ['Sucursal'], '11-COCHABAMBA'),
               fecha: normalizeDateValue(getFirstRawValue(row, ['Fecha', 'FECHA'])),
               camion: normalizeId(getFirstValue(row, ['Camion', 'Camión', 'CamiÃ³n', 'Camin'])),
@@ -792,6 +793,7 @@ export async function parseUploadedExcelFile(file) {
 
           if (observacionesSheet) {
             newBodegaObservaciones = readRows(observacionesSheet).map(row => ({
+              source_file: file.name,
               sucursal: getFirstValue(row, ['Sucursal'], '11'),
               fecha: normalizeDateValue(getFirstRawValue(row, ['Fecha', 'FECHA'])),
               camion: normalizeId(getFirstValue(row, ['Camion', 'Camión', 'CamiÃ³n', 'Camin'])),
@@ -805,6 +807,7 @@ export async function parseUploadedExcelFile(file) {
 
           if (faltantesSheet) {
             newBodegaFS = readRows(faltantesSheet).map(row => ({
+              source_file: file.name,
               sucursal: getFirstValue(row, ['Sucursal'], '11'),
               fecha: normalizeDateValue(getFirstRawValue(row, ['Fecha', 'FECHA'])),
               camion: normalizeId(getFirstValue(row, ['Camion', 'Camión', 'CamiÃ³n', 'Camin'])),
@@ -829,6 +832,7 @@ export async function parseUploadedExcelFile(file) {
 
             return {
               id: `UP_${Date.now()}_${idx}`,
+              source_file: file.name,
               fecha,
               mes: getMonthName(fecha),
               dia: getDisplayDate(fecha),

@@ -12,6 +12,7 @@ import {
   Calendar,
   Percent
 } from 'lucide-react';
+import EditableTitle from './EditableTitle';
 
 export default function Page1Operaciones({ filteredData, filters, setFilters, allAdvisors }) {
   const [currentPage, setCurrentPage] = useState(1);
@@ -134,9 +135,7 @@ export default function Page1Operaciones({ filteredData, filters, setFilters, al
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.75rem', fontWeight: 800, color: '#fff' }}>
-            Operaciones Internas: Cargas & Errores
-          </h1>
+          <EditableTitle id="pag1_main_header" defaultTitle="Operaciones Internas: Cargas & Errores" tag="h1" style={{ fontFamily: 'var(--font-heading)', fontSize: '1.75rem', fontWeight: 800, color: '#fff', margin: 0 }} />
           <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
             Gráficos combinados de Cargas Totales vs Cargas Observadas y control descriptivo completo.
           </p>
@@ -291,7 +290,7 @@ export default function Page1Operaciones({ filteredData, filters, setFilters, al
         <div className="card-header">
           <div className="card-title">
             <TrendingUp size={20} color="#E61D2B" />
-            Gráficos Combinados: Barras = Cantidad de Cargas | Línea = Cargas Observadas
+            <EditableTitle id="pag1_chart_title" defaultTitle="Gráficos Combinados: Barras = Cantidad de Cargas | Línea = Cargas Observadas" tag="span" />
           </div>
           <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
             Evolución diaria por fecha
@@ -313,7 +312,8 @@ export default function Page1Operaciones({ filteredData, filters, setFilters, al
         <div className="card-header">
           <div className="card-title">
             <FileSpreadsheet size={20} color="#E61D2B" />
-            Tabla Descriptiva de Errores ({totalRecords.toLocaleString()} registros)
+            <EditableTitle id="pag1_table_title" defaultTitle="Tabla Descriptiva de Errores" tag="span" />
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 400 }}>({totalRecords.toLocaleString()} registros)</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Mostrar:</span>

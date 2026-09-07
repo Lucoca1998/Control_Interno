@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { parseUploadedExcelFile } from '../utils/dataProcessor';
 import { UploadCloud, X, CheckCircle, AlertCircle, FolderPlus, Calendar, HardDrive, AlertTriangle, Trash2 } from 'lucide-react';
 
-export default function FileUploadModal({ isOpen, onClose, onDataUploaded, onDatesDeleted, loadedFiles, availableDates }) {
+export default function FileUploadModal({ isOpen, onClose, onDataUploaded, onDatesDeleted, onFileRemoved, loadedFiles, availableDates }) {
   const [isDragging, setIsDragging] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [progressInfo, setProgressInfo] = useState({ current: 0, total: 0, fileName: '' });
   const [uploadStatus, setUploadStatus] = useState(null);
   const [deleteStartDate, setDeleteStartDate] = useState('');
   const [deleteEndDate, setDeleteEndDate] = useState('');
@@ -23,8 +24,12 @@ export default function FileUploadModal({ isOpen, onClose, onDataUploaded, onDat
   const handleFiles = async (files) => {
     if (!files || files.length === 0) return;
 
+    // Limit to ~800 files as requested
+    const filesToProcess = files.slice(0, 800);
+
     setIsProcessing(true);
     setUploadStatus(null);
+    setProgressInfo({ current: 0, total: filesToProcess.length, fileName: '' });
 
     let totalMercadoAdded = 0;
     let totalBodegaAdded = 0;
@@ -32,9 +37,11 @@ export default function FileUploadModal({ isOpen, onClose, onDataUploaded, onDat
     let repeatedFiles = [];
 
     try {
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
+      for (let i = 0; i < filesToProcess.length; i++) {
+        const file = filesToProcess[i];
         const lowerName = file.name.toLowerCase();
+
+        setProgressInfo({ current: i + 1, total: filesToProcess.length, fileName: file.name });
 
         // Check if file is repeated
         if (existingFileNames.includes(lowerName)) {
@@ -61,17 +68,17 @@ export default function FileUploadModal({ isOpen, onClose, onDataUploaded, onDat
       if (repeatedFiles.length > 0 && processedFiles === 0) {
         setUploadStatus({
           type: 'warning',
-          message: `⚠️ Archivos Repetidos: [${repeatedFiles.join(', ')}] ya fueron cargados anteriormente.`
+          message: `⚠️ Archivos Repetidos: [${repeatedFiles.slice(0, 5).join(', ')}${repeatedFiles.length > 5 ? ` y ${repeatedFiles.length - 5} más` : ''}] ya fueron cargados anteriormente.`
         });
       } else if (repeatedFiles.length > 0) {
         setUploadStatus({
           type: 'warning',
-          message: `Se procesaron ${processedFiles} archivos. ⚠️ Omisión de repetidos: [${repeatedFiles.join(', ')}] ya existían.`
+          message: `Se procesaron ${processedFiles} archivos exitosamente. ⚠️ Omitidos ${repeatedFiles.length} repetidos.`
         });
       } else {
         setUploadStatus({
           type: 'success',
-          message: `¡Carga exitosa! Se procesaron ${processedFiles} archivos nuevos (${totalMercadoAdded} reg. Mercado, ${totalBodegaAdded} reg. Bodega).`
+          message: `¡Carga masiva exitosa! Se procesaron ${processedFiles} archivos nuevos (${totalMercadoAdded} reg. Mercado, ${totalBodegaAdded} reg. Bodega).`
         });
       }
     } catch (err) {
@@ -146,15 +153,26 @@ export default function FileUploadModal({ isOpen, onClose, onDataUploaded, onDat
     });
   };
 
+  const handleRemoveSingleFile = (fileName) => {
+    const confirmed = window.confirm(`¿Deseas remover el archivo "${fileName}" del sistema?`);
+    if (!confirmed) return;
+
+    onFileRemoved?.(fileName);
+    setUploadStatus({
+      type: 'success',
+      message: `Archivo "${fileName}" fue removido exitosamente del sistema.`
+    });
+  };
+
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="glass-card modal-content animate-fade-in" style={{ maxWidth: '800px' }} onClick={(e) => e.stopPropagation()}>
+      <div className="glass-card modal-content animate-fade-in" style={{ maxWidth: '850px' }} onClick={(e) => e.stopPropagation()}>
         
         {/* Header */}
         <div className="card-header">
           <div className="card-title">
             <UploadCloud size={22} color="#E61D2B" />
-            Gestión de Archivos & Fechas Disponibles
+            Gestión de Archivos & Carga Masiva (Hasta 800 Excels)
           </div>
           <button className="btn btn-outline" style={{ padding: '0.3rem', borderRadius: '50%' }} onClick={onClose}>
             <X size={18} />
@@ -167,19 +185,19 @@ export default function FileUploadModal({ isOpen, onClose, onDataUploaded, onDat
           {/* Fechas Disponibles Summary Banner */}
           <div style={{ background: 'linear-gradient(135deg, rgba(230,29,43,0.15) 0%, rgba(15,76,129,0.2) 100%)', border: '1px solid rgba(230,29,43,0.3)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
             <h3 style={{ fontFamily: 'var(--font-heading)', color: '#fff', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-              <Calendar size={18} color="#FBBF24" /> Fechas Disponibles en el Sistema
+              <Calendar size={18} color="#FBBF24" /> Cobertura de Fechas & Datos Cargados
             </h3>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '0.75rem', fontSize: '0.85rem' }}>
               <div style={{ background: 'rgba(0,0,0,0.3)', padding: '0.6rem 0.8rem', borderRadius: '8px' }}>
                 <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.75rem' }}>RANGO MERCADO:</span>
                 <strong style={{ color: '#FF5252' }}>
-                  {availableDates?.mercado_start || '2024-01-02'} a {availableDates?.mercado_end || '2026-06-29'}
+                  {availableDates?.mercado_start || 'Sin datos'} a {availableDates?.mercado_end || 'Sin datos'}
                 </strong>
               </div>
               <div style={{ background: 'rgba(0,0,0,0.3)', padding: '0.6rem 0.8rem', borderRadius: '8px' }}>
                 <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.75rem' }}>RANGO BODEGA (DIARIOS):</span>
                 <strong style={{ color: '#60A5FA' }}>
-                  {availableDates?.bodega_start || '2026-05-02'} a {availableDates?.bodega_end || '2026-06-29'}
+                  {availableDates?.bodega_start || 'Sin datos'} a {availableDates?.bodega_end || 'Sin datos'}
                 </strong>
               </div>
             </div>
@@ -285,10 +303,10 @@ export default function FileUploadModal({ isOpen, onClose, onDataUploaded, onDat
 
             <div>
               <div style={{ fontWeight: 700, color: '#fff', fontSize: '0.95rem' }}>
-                Subir nuevos reportes Excel o carpeta mensual
+                Subir todos tus archivos Excel o carpetas (Soporta hasta 800 Excels)
               </div>
               <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-                Si el archivo ya fue subido anteriormente, el sistema advertirá que está **repetido**.
+                Selecciona múltiples archivos de Mercado y Bodega. Se sumarán todas las fechas a tu base de datos.
               </div>
             </div>
 
@@ -304,8 +322,12 @@ export default function FileUploadModal({ isOpen, onClose, onDataUploaded, onDat
 
           {/* Processing Indicator */}
           {isProcessing && (
-            <div style={{ padding: '0.75rem 1rem', background: 'rgba(37, 99, 235, 0.15)', border: '1px solid rgba(37, 99, 235, 0.4)', borderRadius: '8px', color: '#60A5FA', fontSize: '0.85rem' }}>
-              Procesando y agregando archivos Excel...
+            <div style={{ padding: '0.85rem 1rem', background: 'rgba(37, 99, 235, 0.15)', border: '1px solid rgba(37, 99, 235, 0.4)', borderRadius: '8px', color: '#60A5FA', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              <div className="spinner" style={{ width: '20px', height: '20px', border: '2px solid #60A5FA', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+              <div>
+                <strong>Procesando batch {progressInfo.current} de {progressInfo.total} archivos...</strong>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Procesando: {progressInfo.fileName}</div>
+              </div>
             </div>
           )}
 
@@ -327,41 +349,68 @@ export default function FileUploadModal({ isOpen, onClose, onDataUploaded, onDat
             </div>
           )}
 
-          {/* Loaded Files Directory List */}
+          {/* Loaded Files Directory List with Remove Option */}
           <div>
-            <h4 style={{ fontFamily: 'var(--font-heading)', color: '#fff', fontSize: '0.95rem', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <HardDrive size={16} color="#60A5FA" /> Inventario de Archivos Cargados en Sistema ({loadedFiles?.length || 0})
-            </h4>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+              <h4 style={{ fontFamily: 'var(--font-heading)', color: '#fff', fontSize: '0.95rem', margin: 0, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <HardDrive size={16} color="#60A5FA" /> Inventario de Archivos Cargados ({loadedFiles?.length || 0})
+              </h4>
 
-            <div style={{ maxHeight: '180px', overflowY: 'auto', border: '1px solid var(--border-light)', borderRadius: '8px', background: 'rgba(10, 14, 20, 0.8)' }}>
+              {/* Explicit Quick Action to Remove Cruces y Faltantes */}
+              <button
+                className="btn btn-outline"
+                style={{ padding: '0.3rem 0.6rem', fontSize: '0.72rem', color: '#FCA5A5', borderColor: 'rgba(239,68,68,0.4)' }}
+                onClick={() => handleRemoveSingleFile('Cruces y Faltantes Mercado.xlsx')}
+                title="Remover el reporte predeterminado de Cruces y Faltantes Mercado"
+              >
+                <Trash2 size={13} />
+                Remover "Cruces y Faltantes Mercado"
+              </button>
+            </div>
+
+            <div style={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid var(--border-light)', borderRadius: '8px', background: 'rgba(10, 14, 20, 0.8)' }}>
               <table className="custom-table" style={{ fontSize: '0.78rem' }}>
                 <thead>
                   <tr>
                     <th>NOMBRE DEL ARCHIVO</th>
-                    <th>TIPO DE REPORTE</th>
+                    <th>TIPO REPORTE</th>
                     <th>REGISTROS</th>
                     <th>COBERTURA FECHAS</th>
-                    <th>ESTADO</th>
+                    <th>ACCIÓN</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {(loadedFiles || []).slice(0, 15).map((f, idx) => (
-                    <tr key={idx}>
-                      <td style={{ fontWeight: 600, color: '#fff' }}>{f.fileName}</td>
-                      <td>
-                        <span className={f.fileType.includes('Mercado') ? 'badge badge-faltante' : 'badge badge-blue'}>
-                          {f.fileType}
-                        </span>
-                      </td>
-                      <td style={{ fontWeight: 700 }}>{f.recordsCount.toLocaleString()}</td>
-                      <td style={{ color: 'var(--text-muted)' }}>
-                        {f.startDate ? `${f.startDate} a ${f.endDate}` : 'Rango Activo'}
-                      </td>
-                      <td>
-                        <span className="badge badge-procede" style={{ fontSize: '0.65rem' }}>CARGADO</span>
+                  {(loadedFiles || []).length > 0 ? (
+                    (loadedFiles || []).map((f, idx) => (
+                      <tr key={idx}>
+                        <td style={{ fontWeight: 600, color: '#fff' }}>{f.fileName}</td>
+                        <td>
+                          <span className={f.fileType.includes('Mercado') ? 'badge badge-faltante' : 'badge badge-blue'}>
+                            {f.fileType}
+                          </span>
+                        </td>
+                        <td style={{ fontWeight: 700 }}>{f.recordsCount.toLocaleString()}</td>
+                        <td style={{ color: 'var(--text-muted)' }}>
+                          {f.startDate ? `${f.startDate} a ${f.endDate}` : 'Rango Activo'}
+                        </td>
+                        <td>
+                          <button
+                            className="btn btn-outline"
+                            style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem', color: '#FCA5A5', borderColor: 'rgba(239,68,68,0.4)' }}
+                            onClick={() => handleRemoveSingleFile(f.fileName)}
+                          >
+                            <Trash2 size={12} /> Remover
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan="5" style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-muted)' }}>
+                        No hay archivos cargados. Puedes subir hasta 800 Excels usando el recuadro superior.
                       </td>
                     </tr>
-                  ))}
+                  )}
                 </tbody>
               </table>
             </div>

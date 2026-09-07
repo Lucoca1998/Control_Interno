@@ -7,6 +7,7 @@ import {
   Truck, 
   Search, 
 } from 'lucide-react';
+import EditableTitle from './EditableTitle';
 
 export default function Page2TrazabilidadVS({ filteredData }) {
   const [searchTruck, setSearchTruck] = useState('');
@@ -81,9 +82,7 @@ export default function Page2TrazabilidadVS({ filteredData }) {
       
       {/* Header */}
       <div>
-        <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.75rem', fontWeight: 800, color: '#fff' }}>
-          Control Interno (Bodega) VS Errores de Mercado & Trazabilidad
-        </h1>
+        <EditableTitle id="pag2_main_header" defaultTitle="Control Interno (Bodega) VS Errores de Mercado & Trazabilidad" tag="h1" style={{ fontFamily: 'var(--font-heading)', fontSize: '1.75rem', fontWeight: 800, color: '#fff', margin: 0 }} />
         <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
           Auditoría de usuarios responsables, trazabilidad de cargas e inspección completa por camión y viaje.
         </p>
@@ -134,7 +133,7 @@ export default function Page2TrazabilidadVS({ filteredData }) {
           <div className="card-header">
             <div className="card-title">
               <GitCompare size={20} color="#E61D2B" />
-              Proporción de Errores: Bodega VS Mercado
+              <EditableTitle id="pag2_donut_chart_title" defaultTitle="Proporción de Errores: Bodega VS Mercado" tag="span" />
             </div>
           </div>
           <div className="card-body" style={{ display: 'flex', justifyContent: 'center' }}>
@@ -147,7 +146,7 @@ export default function Page2TrazabilidadVS({ filteredData }) {
           <div className="card-header">
             <div className="card-title">
               <ShieldCheck size={20} color="#22C55E" />
-              Auditoría Preventiva: Errores Atrapados en Bodega VS Escapados a Mercado
+              <EditableTitle id="pag2_preventive_chart_title" defaultTitle="Auditoría Preventiva: Errores Atrapados en Bodega VS Escapados a Mercado" tag="span" />
             </div>
           </div>
           <div className="card-body">
@@ -165,7 +164,7 @@ export default function Page2TrazabilidadVS({ filteredData }) {
         <div className="card-header">
           <div className="card-title">
             <Truck size={20} color="#60A5FA" />
-            Matriz de Trazabilidad Unificada por Camión y Usuarios
+            <EditableTitle id="pag2_traceability_matrix_title" defaultTitle="Matriz de Trazabilidad Unificada por Camión y Usuarios" tag="span" />
           </div>
           <div style={{ position: 'relative', width: '260px' }}>
             <Search size={16} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
