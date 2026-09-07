@@ -701,12 +701,9 @@ export default function PagePrincipalCalidad({ dataset }) {
                   <tr>
                     <th>Error Detectado</th>
                     <th>Área Principal</th>
-                    <th style={{ color: '#60A5FA' }}>Bodega</th>
-                    <th style={{ color: '#C084FC' }}>Producción</th>
-                    <th style={{ color: '#FBBF24' }}>Comercialización</th>
-                    <th style={{ color: '#FF5252' }}>Mercado</th>
-                    <th>Total Reclamos</th>
+                    <th>Reclamos</th>
                     <th>% Total</th>
+                    <th>Cantidad Reportada</th>
                     <th>Producto más repetido</th>
                     <th>Lugar</th>
                   </tr>
@@ -722,20 +719,9 @@ export default function PagePrincipalCalidad({ dataset }) {
                           {error.mainArea === 'Bodega' && <span className="badge badge-blue">Bodega</span>}
                           {error.mainArea === 'Mercado' && <span className="badge badge-faltante">Mercado</span>}
                         </td>
-                        <td style={{ fontWeight: 700, color: error.bodegaCount > 0 ? '#60A5FA' : 'var(--text-dim)' }}>
-                          {error.bodegaCount} <span style={{ fontSize: '0.72rem', opacity: 0.8 }}>({error.bodegaPct}%)</span>
-                        </td>
-                        <td style={{ fontWeight: 700, color: error.produccionCount > 0 ? '#C084FC' : 'var(--text-dim)' }}>
-                          {error.produccionCount} <span style={{ fontSize: '0.72rem', opacity: 0.8 }}>({error.produccionPct}%)</span>
-                        </td>
-                        <td style={{ fontWeight: 700, color: error.comercializacionCount > 0 ? '#FBBF24' : 'var(--text-dim)' }}>
-                          {error.comercializacionCount} <span style={{ fontSize: '0.72rem', opacity: 0.8 }}>({error.comercializacionPct}%)</span>
-                        </td>
-                        <td style={{ fontWeight: 700, color: error.mercadoCount > 0 ? '#FF5252' : 'var(--text-dim)' }}>
-                          {error.mercadoCount} <span style={{ fontSize: '0.72rem', opacity: 0.8 }}>({error.mercadoPct}%)</span>
-                        </td>
-                        <td style={{ fontWeight: 800, color: '#fff' }}>{error.count.toLocaleString()}</td>
+                        <td style={{ fontWeight: 800, color: '#FF5252' }}>{error.count.toLocaleString()}</td>
                         <td style={{ fontWeight: 700 }}>{formatPercent(error.percentage)}</td>
+                        <td>{error.quantity}</td>
                         <td>
                           <span style={{ fontWeight: 700, color: '#F1F5F9' }}>{error.topProduct.label}</span>
                           <span className="quality-detail-muted"> ({error.topProduct.count})</span>
@@ -748,7 +734,7 @@ export default function PagePrincipalCalidad({ dataset }) {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan="10" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                      <td colSpan="7" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
                         No hay reclamos registrados para el mes seleccionado
                       </td>
                     </tr>
