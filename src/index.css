@@ -168,6 +168,18 @@ body {
   border: 1px solid rgba(110, 13, 25, 0.6);
 }
 
+.badge-produccion {
+  background: rgba(168, 85, 247, 0.22);
+  color: #C084FC;
+  border: 1px solid rgba(168, 85, 247, 0.5);
+}
+
+.badge-comercializacion {
+  background: rgba(245, 158, 11, 0.22);
+  color: #FBBF24;
+  border: 1px solid rgba(245, 158, 11, 0.5);
+}
+
 /* Custom Buttons */
 .btn {
   display: inline-flex;

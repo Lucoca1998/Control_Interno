@@ -130,8 +130,27 @@ export default function PagePrincipalCalidad({ dataset }) {
   const [bodegaPeriod, setBodegaPeriod] = useState({ year: '', month: '' });
   const [photos, setPhotos] = useState(loadStoredPhotos);
   const [photoNotice, setPhotoNotice] = useState('');
+  
+  // Multi-date selection state
+  const [dateMode, setDateMode] = useState('period'); // 'period' | 'multidate'
+  const [selectedDates, setSelectedDates] = useState([]);
 
   const { mercado, bodega_observaciones, bodega_faltantes_sobrantes } = dataset;
+
+  // Available unique dates
+  const availableDatesList = useMemo(() => {
+    const set = new Set();
+    (mercado || []).forEach(m => { if (m.fecha) set.add(m.fecha); });
+    (bodega_observaciones || []).forEach(b => { if (b.fecha) set.add(b.fecha); });
+    (bodega_faltantes_sobrantes || []).forEach(b => { if (b.fecha) set.add(b.fecha); });
+    return Array.from(set).sort().reverse();
+  }, [mercado, bodega_observaciones, bodega_faltantes_sobrantes]);
+
+  const toggleDateSelection = (dt) => {
+    setSelectedDates(prev => 
+      prev.includes(dt) ? prev.filter(d => d !== dt) : [...prev, dt]
+    );
+  };
 
   const mercadoPeriodOptions = useMemo(() => getMercadoPeriodOptions(mercado), [mercado]);
   const bodegaPeriodOptions = useMemo(() => (
@@ -139,10 +158,17 @@ export default function PagePrincipalCalidad({ dataset }) {
   ), [bodega_observaciones, bodega_faltantes_sobrantes]);
   const selectedMercado = resolveSelectedPeriod(mercadoPeriod, mercadoPeriodOptions);
   const selectedBodega = resolveSelectedPeriod(bodegaPeriod, bodegaPeriodOptions);
-  const activeMercadoPeriodFilter = useMemo(() => ({
-    year: selectedMercado.year,
-    month: selectedMercado.month
-  }), [selectedMercado.year, selectedMercado.month]);
+  
+  const activeMercadoPeriodFilter = useMemo(() => {
+    if (dateMode === 'multidate' && selectedDates.length > 0) {
+      return { selectedDates };
+    }
+    return {
+      year: selectedMercado.year,
+      month: selectedMercado.month
+    };
+  }, [dateMode, selectedDates, selectedMercado.year, selectedMercado.month]);
+
   const activeBodegaPeriodFilter = useMemo(() => ({
     year: selectedBodega.year,
     month: selectedBodega.month
@@ -326,7 +352,7 @@ export default function PagePrincipalCalidad({ dataset }) {
       <section className="quality-page-header">
         <div>
           <h1>Dashboard de Control Interno de Calidad</h1>
-          <p>Indicadores conectados a los datos cargados de bodega y reclamos de mercado.</p>
+          <p>Indicadores conectados a los datos cargados de bodega, producción y reclamos de mercado.</p>
         </div>
         <div className="quality-status-badges">
           <span className="quality-live-badge">
@@ -442,33 +468,140 @@ export default function PagePrincipalCalidad({ dataset }) {
         />
       </section>
 
+      {/* DETALLE DE ERRORES CON BODEGA, PRODUCCIÓN, COMERCIALIZACIÓN Y MERCADO + MULTI-FECHAS */}
       <section className="glass-card">
-        <div className="card-header quality-card-header">
-          <div>
-            <div className="card-title">
-              <ClipboardList size={20} color="#E61D2B" />
-              Detalle de errores en mercado
+        <div className="card-header quality-card-header" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '1rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+            <div>
+              <div className="card-title">
+                <ClipboardList size={20} color="#E61D2B" />
+                Detalle de Errores por Área (Bodega, Producción, Comercialización & Mercado)
+              </div>
+              <p className="quality-card-caption">
+                Filtro actual: <strong style={{ color: '#fff' }}>{mercadoDetails.periodLabel}</strong> ({mercadoDetails.total.toLocaleString()} reclamos)
+              </p>
             </div>
-            <p className="quality-card-caption">{mercadoDetails.periodLabel}</p>
+
+            {/* Mode Switcher: Period vs Multi-Date */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(15, 20, 30, 0.8)', padding: '0.35rem 0.5rem', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
+              <button
+                type="button"
+                className={`btn ${dateMode === 'period' ? 'btn-primary' : 'btn-outline'}`}
+                style={{ padding: '0.35rem 0.75rem', fontSize: '0.78rem' }}
+                onClick={() => setDateMode('period')}
+              >
+                Filtro por Mes
+              </button>
+              <button
+                type="button"
+                className={`btn ${dateMode === 'multidate' ? 'btn-primary' : 'btn-outline'}`}
+                style={{ padding: '0.35rem 0.75rem', fontSize: '0.78rem' }}
+                onClick={() => setDateMode('multidate')}
+              >
+                Escoger Múltiples Fechas {selectedDates.length > 0 && `(${selectedDates.length})`}
+              </button>
+            </div>
           </div>
-          <span className="quality-period-badge">
-            {mercadoDetails.total.toLocaleString()} reclamos
-          </span>
+
+          {/* Multi-Date Selection Toolbar */}
+          {dateMode === 'multidate' && (
+            <div style={{ padding: '0.85rem 1rem', background: 'rgba(230, 29, 43, 0.08)', borderRadius: '10px', border: '1px solid rgba(230, 29, 43, 0.25)', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#FF5252' }}>
+                  📅 SELECCIONA LAS FECHAS A AUDITAR:
+                </span>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button
+                    type="button"
+                    className="btn btn-outline"
+                    style={{ padding: '0.2rem 0.5rem', fontSize: '0.72rem' }}
+                    onClick={() => setSelectedDates([...availableDatesList])}
+                  >
+                    Seleccionar Todas ({availableDatesList.length})
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-outline"
+                    style={{ padding: '0.2rem 0.5rem', fontSize: '0.72rem' }}
+                    onClick={() => setSelectedDates([])}
+                  >
+                    Limpiar
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', maxHeight: '120px', overflowY: 'auto', paddingRight: '0.5rem' }}>
+                {availableDatesList.map(dt => {
+                  const isSelected = selectedDates.includes(dt);
+                  const formatted = formatDateLabel(dt);
+                  return (
+                    <button
+                      key={dt}
+                      type="button"
+                      onClick={() => toggleDateSelection(dt)}
+                      style={{
+                        padding: '0.25rem 0.6rem',
+                        borderRadius: '20px',
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        border: isSelected ? '1px solid #E61D2B' : '1px solid var(--border-light)',
+                        background: isSelected ? 'rgba(230, 29, 43, 0.3)' : 'rgba(15, 20, 30, 0.6)',
+                        color: isSelected ? '#fff' : 'var(--text-muted)',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      {isSelected ? '✓ ' : ''}{formatted}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="card-body quality-market-detail-body">
-          <div className="quality-detail-summary">
-            <div>
-              <span>Reclamos del periodo</span>
-              <strong>{mercadoDetails.total.toLocaleString()}</strong>
+          
+          {/* KPI Area Breakdown Summary Cards */}
+          <div className="kpi-grid" style={{ marginBottom: '1.25rem' }}>
+            <div className="glass-card kpi-card" style={{ borderLeftColor: '#FF5252' }}>
+              <div className="kpi-title">ERRORES EN MERCADO</div>
+              <div className="kpi-value" style={{ color: '#FF5252' }}>
+                {mercadoDetails.areaCounts.mercado.toLocaleString()}
+              </div>
+              <div className="kpi-sub" style={{ color: '#FF5252', fontWeight: 700 }}>
+                {mercadoDetails.areaCounts.mercadoPct}% del total
+              </div>
             </div>
-            <div>
-              <span>Motivo principal</span>
-              <strong>{mercadoDetails.topReason?.motivo || 'Sin datos'}</strong>
+
+            <div className="glass-card kpi-card blue">
+              <div className="kpi-title">ERRORES EN BODEGA</div>
+              <div className="kpi-value" style={{ color: '#60A5FA' }}>
+                {mercadoDetails.areaCounts.bodega.toLocaleString()}
+              </div>
+              <div className="kpi-sub" style={{ color: '#60A5FA', fontWeight: 700 }}>
+                {mercadoDetails.areaCounts.bodegaPct}% del total
+              </div>
             </div>
-            <div>
-              <span>Productos afectados</span>
-              <strong>{mercadoDetails.uniqueProductsCount.toLocaleString()}</strong>
+
+            <div className="glass-card kpi-card" style={{ borderLeftColor: '#C084FC' }}>
+              <div className="kpi-title">ERRORES EN PRODUCCIÓN</div>
+              <div className="kpi-value" style={{ color: '#C084FC' }}>
+                {mercadoDetails.areaCounts.produccion.toLocaleString()}
+              </div>
+              <div className="kpi-sub" style={{ color: '#C084FC', fontWeight: 700 }}>
+                {mercadoDetails.areaCounts.produccionPct}% del total
+              </div>
+            </div>
+
+            <div className="glass-card kpi-card amber">
+              <div className="kpi-title">ERRORES EN COMERCIALIZACIÓN</div>
+              <div className="kpi-value" style={{ color: '#FBBF24' }}>
+                {mercadoDetails.areaCounts.comercializacion.toLocaleString()}
+              </div>
+              <div className="kpi-sub" style={{ color: '#FBBF24', fontWeight: 700 }}>
+                {mercadoDetails.areaCounts.comercializacionPct}% del total
+              </div>
             </div>
           </div>
 
@@ -477,11 +610,14 @@ export default function PagePrincipalCalidad({ dataset }) {
               <table className="custom-table quality-detail-table">
                 <thead>
                   <tr>
-                    <th>Error detectado</th>
-                    <th>Clasificación</th>
-                    <th>Reclamos</th>
+                    <th>Error Detectado</th>
+                    <th>Área Principal</th>
+                    <th style={{ color: '#60A5FA' }}>Bodega</th>
+                    <th style={{ color: '#C084FC' }}>Producción</th>
+                    <th style={{ color: '#FBBF24' }}>Comercialización</th>
+                    <th style={{ color: '#FF5252' }}>Mercado</th>
+                    <th>Total Reclamos</th>
                     <th>%</th>
-                    <th>Cantidad reportada</th>
                     <th>Producto más repetido</th>
                     <th>Lugar</th>
                   </tr>
@@ -491,10 +627,26 @@ export default function PagePrincipalCalidad({ dataset }) {
                     mercadoDetails.breakdown.map(error => (
                       <tr key={error.motivo}>
                         <td style={{ fontWeight: 800, color: '#fff' }}>{error.motivo}</td>
-                        <td>{error.classification}</td>
-                        <td style={{ fontWeight: 800, color: '#FF5252' }}>{error.count.toLocaleString()}</td>
+                        <td>
+                          {error.mainArea === 'Producción' && <span className="badge badge-produccion">Producción</span>}
+                          {error.mainArea === 'Comercialización' && <span className="badge badge-comercializacion">Comercialización</span>}
+                          {error.mainArea === 'Bodega' && <span className="badge badge-blue">Bodega</span>}
+                          {error.mainArea === 'Mercado' && <span className="badge badge-faltante">Mercado</span>}
+                        </td>
+                        <td style={{ fontWeight: 700, color: error.bodegaCount > 0 ? '#60A5FA' : 'var(--text-dim)' }}>
+                          {error.bodegaCount} <span style={{ fontSize: '0.72rem', opacity: 0.8 }}>({error.bodegaPct}%)</span>
+                        </td>
+                        <td style={{ fontWeight: 700, color: error.produccionCount > 0 ? '#C084FC' : 'var(--text-dim)' }}>
+                          {error.produccionCount} <span style={{ fontSize: '0.72rem', opacity: 0.8 }}>({error.produccionPct}%)</span>
+                        </td>
+                        <td style={{ fontWeight: 700, color: error.comercializacionCount > 0 ? '#FBBF24' : 'var(--text-dim)' }}>
+                          {error.comercializacionCount} <span style={{ fontSize: '0.72rem', opacity: 0.8 }}>({error.comercializacionPct}%)</span>
+                        </td>
+                        <td style={{ fontWeight: 700, color: error.mercadoCount > 0 ? '#FF5252' : 'var(--text-dim)' }}>
+                          {error.mercadoCount} <span style={{ fontSize: '0.72rem', opacity: 0.8 }}>({error.mercadoPct}%)</span>
+                        </td>
+                        <td style={{ fontWeight: 800, color: '#fff' }}>{error.count.toLocaleString()}</td>
                         <td style={{ fontWeight: 700 }}>{formatPercent(error.percentage)}</td>
-                        <td>{error.quantity}</td>
                         <td>
                           <span style={{ fontWeight: 700, color: '#F1F5F9' }}>{error.topProduct.label}</span>
                           <span className="quality-detail-muted"> ({error.topProduct.count})</span>
@@ -507,8 +659,8 @@ export default function PagePrincipalCalidad({ dataset }) {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan="7" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
-                        No hay reclamos de mercado para el periodo seleccionado
+                      <td colSpan="10" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                        No hay reclamos registrados para los filtros o fechas seleccionadas
                       </td>
                     </tr>
                   )}

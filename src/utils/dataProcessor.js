@@ -1194,20 +1194,83 @@ export function getBodegaPeriodOptions(bodegaObsList, bodegaFSList) {
   ]);
 }
 
+export function classifyAreaResponsibility(record) {
+  const text = normalizeSearchText([
+    record?.motivo,
+    record?.tipo_clasificacion,
+    record?.descripcion,
+    record?.tipo_fs,
+    record?.producto_esperado,
+    record?.producto_entregado,
+    record?.observacion,
+    record?.lugar
+  ].filter(Boolean).join(' '));
+
+  if (
+    text.includes('PRODUCCION') || text.includes('PRODUCCIÓN') ||
+    text.includes('PLANTA') || text.includes('FABRICA') || text.includes('FÁBRICA') ||
+    text.includes('VACIA') || text.includes('VACIO') || text.includes('SIN LIQUIDO') || text.includes('SIN LÍQUIDO') ||
+    text.includes('MERMA') || text.includes('TAPA') || text.includes('TAPAS') ||
+    text.includes('ROTA') || text.includes('ROTURA') || text.includes('PINCHADA') || text.includes('ETIQUETA') ||
+    text.includes('DEFECTUOSO') || text.includes('VENCIDA') || text.includes('VENCIDO') || text.includes('LLENADO') ||
+    text.includes('ABIERTO') || text.includes('MAL ESTADO')
+  ) {
+    return 'Producción';
+  }
+
+  if (
+    text.includes('COMERCIAL') || text.includes('VENTA') || text.includes('VENTAS') ||
+    text.includes('PREVENTA') || text.includes('PEDIDO') || text.includes('CLIENTE') ||
+    text.includes('SISTEMA') || text.includes('CAMBIO CLIENTE') || text.includes('PROMOCION') || text.includes('PROMOCIÓN')
+  ) {
+    return 'Comercialización';
+  }
+
+  if (
+    text.includes('BODEGA') || text.includes('PICKING') || text.includes('ARMADO') ||
+    text.includes('PALLET') || text.includes('PALET') || text.includes('ALMACEN') || text.includes('ALMACÉN') ||
+    text.includes('CONTROL INTERNO')
+  ) {
+    return 'Bodega';
+  }
+
+  return 'Mercado';
+}
+
 export function getMercadoErrorDetails(mercadoList, periodFilter = {}) {
-  const requestedPeriod = getRequestedPeriod(periodFilter);
-  const filteredRecords = requestedPeriod
-    ? filterRecordsToPeriod(mercadoList || [], requestedPeriod)
-    : (mercadoList || []);
+  let filteredRecords = mercadoList || [];
+
+  if (Array.isArray(periodFilter.selectedDates) && periodFilter.selectedDates.length > 0) {
+    const datesSet = new Set(periodFilter.selectedDates);
+    filteredRecords = filteredRecords.filter(r => datesSet.has(r.fecha));
+  } else if (periodFilter.start && periodFilter.end) {
+    const from = periodFilter.start <= periodFilter.end ? periodFilter.start : periodFilter.end;
+    const to = periodFilter.start <= periodFilter.end ? periodFilter.end : periodFilter.start;
+    filteredRecords = filteredRecords.filter(r => VALID_DATE_RE.test(r.fecha) && r.fecha >= from && r.fecha <= to);
+  } else {
+    const requestedPeriod = getRequestedPeriod(periodFilter);
+    if (requestedPeriod) {
+      filteredRecords = filterRecordsToPeriod(mercadoList || [], requestedPeriod);
+    }
+  }
 
   const total = filteredRecords.length;
   const motivoMap = {};
   const productMap = {};
+  const areaCounts = {
+    Bodega: 0,
+    Producción: 0,
+    Comercialización: 0,
+    Mercado: 0
+  };
 
   filteredRecords.forEach(record => {
     const motivo = cleanCell(record.motivo, 'NO ESPECIFICADO').toUpperCase();
     const motivoKey = normalizeSearchText(motivo) || 'NO ESPECIFICADO';
     const product = cleanCell(record.producto_esperado, 'Producto no especificado').toUpperCase();
+    const area = classifyAreaResponsibility(record);
+
+    areaCounts[area] = (areaCounts[area] || 0) + 1;
 
     if (!motivoMap[motivoKey]) {
       motivoMap[motivoKey] = {
@@ -1216,11 +1279,13 @@ export function getMercadoErrorDetails(mercadoList, periodFilter = {}) {
         productCounts: {},
         locationCounts: {},
         quantityByUnit: {},
+        areaCounts: { Bodega: 0, Producción: 0, Comercialización: 0, Mercado: 0 },
         count: 0
       };
     }
 
     motivoMap[motivoKey].count += 1;
+    motivoMap[motivoKey].areaCounts[area] = (motivoMap[motivoKey].areaCounts[area] || 0) + 1;
     countMapValue(motivoMap[motivoKey].classificationCounts, cleanCell(record.tipo_clasificacion, classifyQualityError(record)));
     countMapValue(motivoMap[motivoKey].productCounts, product);
     countMapValue(motivoMap[motivoKey].locationCounts, cleanCell(record.lugar, 'Sin lugar'));
@@ -1233,6 +1298,10 @@ export function getMercadoErrorDetails(mercadoList, periodFilter = {}) {
       const topProduct = getTopMapEntry(item.productCounts);
       const topLocation = getTopMapEntry(item.locationCounts);
       const topClassification = getTopMapEntry(item.classificationCounts);
+      
+      const mainArea = Object.entries(item.areaCounts)
+        .sort((a, b) => b[1] - a[1])[0][0];
+
       const quantities = Object.entries(item.quantityByUnit)
         .sort((a, b) => b[1] - a[1])
         .map(([unit, value]) => `${value.toLocaleString()} ${unit}`)
@@ -1242,11 +1311,20 @@ export function getMercadoErrorDetails(mercadoList, periodFilter = {}) {
       return {
         motivo: item.motivo,
         classification: topClassification.label,
+        mainArea,
         count: item.count,
         percentage: total > 0 ? Number(((item.count / total) * 100).toFixed(1)) : 0,
         quantity: quantities || `${item.count.toLocaleString()} reg.`,
         topProduct,
-        topLocation
+        topLocation,
+        bodegaCount: item.areaCounts.Bodega || 0,
+        bodegaPct: item.count > 0 ? Number(((item.areaCounts.Bodega / item.count) * 100).toFixed(0)) : 0,
+        produccionCount: item.areaCounts.Producción || 0,
+        produccionPct: item.count > 0 ? Number(((item.areaCounts.Producción / item.count) * 100).toFixed(0)) : 0,
+        comercializacionCount: item.areaCounts.Comercialización || 0,
+        comercializacionPct: item.count > 0 ? Number(((item.areaCounts.Comercialización / item.count) * 100).toFixed(0)) : 0,
+        mercadoCount: item.areaCounts.Mercado || 0,
+        mercadoPct: item.count > 0 ? Number(((item.areaCounts.Mercado / item.count) * 100).toFixed(0)) : 0
       };
     })
     .sort((a, b) => b.count - a.count || a.motivo.localeCompare(b.motivo));
@@ -1256,14 +1334,35 @@ export function getMercadoErrorDetails(mercadoList, periodFilter = {}) {
     .sort((a, b) => b.count - a.count || a.product.localeCompare(b.product))
     .slice(0, 8);
 
+  const getAreaPeriodLabel = () => {
+    if (Array.isArray(periodFilter.selectedDates) && periodFilter.selectedDates.length > 0) {
+      if (periodFilter.selectedDates.length === 1) return `Fecha: ${getDisplayDate(periodFilter.selectedDates[0])}`;
+      return `${periodFilter.selectedDates.length} Fechas Seleccionadas`;
+    }
+    if (periodFilter.start && periodFilter.end) {
+      return `${getDisplayDate(periodFilter.start)} a ${getDisplayDate(periodFilter.end)}`;
+    }
+    return getPeriodLabel(periodFilter, getRequestedPeriod(periodFilter));
+  };
+
   return {
     total,
-    periodLabel: getPeriodLabel(periodFilter, requestedPeriod),
+    periodLabel: getAreaPeriodLabel(),
     categoryCounts: countQualityCategories(filteredRecords),
     breakdown,
     topProducts,
     uniqueProductsCount: Object.keys(productMap).length,
-    topReason: breakdown[0] || null
+    topReason: breakdown[0] || null,
+    areaCounts: {
+      bodega: areaCounts.Bodega,
+      bodegaPct: total > 0 ? Number(((areaCounts.Bodega / total) * 100).toFixed(1)) : 0,
+      produccion: areaCounts.Producción,
+      produccionPct: total > 0 ? Number(((areaCounts.Producción / total) * 100).toFixed(1)) : 0,
+      comercializacion: areaCounts.Comercialización,
+      comercializacionPct: total > 0 ? Number(((areaCounts.Comercialización / total) * 100).toFixed(1)) : 0,
+      mercado: areaCounts.Mercado,
+      mercadoPct: total > 0 ? Number(((areaCounts.Mercado / total) * 100).toFixed(1)) : 0
+    }
   };
 }
 
