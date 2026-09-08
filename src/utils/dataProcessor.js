@@ -875,13 +875,6 @@ export async function parseUploadedExcelFile(file) {
   });
 }
 
-const QUALITY_MONTHS = [
-  { month: 5, label: 'MAY' },
-  { month: 6, label: 'JUN' },
-  { month: 7, label: 'JUL' },
-  { month: 8, label: 'AGO' }
-];
-
 const QUALITY_ERROR_CATEGORIES = ['Faltante', 'Sobrante', 'Cruce'];
 
 const MONTH_LABELS = [
@@ -928,21 +921,22 @@ function classifyQualityError(record) {
 }
 
 function getLatestComparisonYear(records) {
-  const preferredYears = records
-    .map(record => record.fecha)
-    .filter(fecha => VALID_DATE_RE.test(fecha))
-    .map(fecha => ({ year: Number(fecha.slice(0, 4)), month: Number(fecha.slice(5, 7)) }))
-    .filter(date => QUALITY_MONTHS.some(item => item.month === date.month))
-    .map(date => date.year);
-
-  if (preferredYears.length > 0) return Math.max(...preferredYears);
-
   const allYears = records
     .map(record => record.fecha)
     .filter(fecha => VALID_DATE_RE.test(fecha))
     .map(fecha => Number(fecha.slice(0, 4)));
 
   return allYears.length > 0 ? Math.max(...allYears) : new Date().getFullYear();
+}
+
+function getComparisonMonths(records, year) {
+  const months = [...new Set((records || [])
+    .map(record => record.fecha)
+    .filter(fecha => VALID_DATE_RE.test(fecha) && Number(fecha.slice(0, 4)) === year)
+    .map(fecha => Number(fecha.slice(5, 7))))]
+    .sort((a, b) => a - b);
+
+  return months.map(month => ({ month, label: formatMonthLabel(month).slice(0, 3).toUpperCase() }));
 }
 
 function getDaysInMonth(year, month) {
@@ -957,9 +951,9 @@ function createDateKey(year, month, day) {
   return `${year}-${pad2(month)}-${pad2(day)}`;
 }
 
-function countRecordsByMonth(records, year) {
+function countRecordsByMonth(records, year, comparisonMonths) {
   const monthCounts = {};
-  QUALITY_MONTHS.forEach(({ month }) => {
+  comparisonMonths.forEach(({ month }) => {
     monthCounts[createMonthKey(year, month)] = 0;
   });
 
@@ -974,9 +968,9 @@ function countRecordsByMonth(records, year) {
   return monthCounts;
 }
 
-function countRecordsByDay(records, year) {
+function countRecordsByDay(records, year, comparisonMonths) {
   const dayCounts = {};
-  QUALITY_MONTHS.forEach(({ month }) => {
+  comparisonMonths.forEach(({ month }) => {
     const days = getDaysInMonth(year, month);
     for (let day = 1; day <= days; day++) {
       dayCounts[createDateKey(year, month, day)] = 0;
@@ -1357,22 +1351,23 @@ export function getQualityDashboardData(mercadoList, bodegaObsList, bodegaFSList
   const bodegaComparison = filterRecordsToPeriod(records.bodega, comparisonPeriod);
   const mercadoComparison = filterRecordsToPeriod(records.mercado, comparisonPeriod);
   const mercadoValidosComparison = mercadoComparison.filter(record => normalizeSearchText(record.resultado) === 'VALIDO');
+  const comparisonMonths = getComparisonMonths([...bodegaComparison, ...mercadoComparison], comparisonYear);
 
-  const bodegaMonthCounts = countRecordsByMonth(bodegaComparison, comparisonYear);
-  const mercadoMonthCounts = countRecordsByMonth(mercadoComparison, comparisonYear);
-  const mercadoValidosMonthCounts = countRecordsByMonth(mercadoValidosComparison, comparisonYear);
+  const bodegaMonthCounts = countRecordsByMonth(bodegaComparison, comparisonYear, comparisonMonths);
+  const mercadoMonthCounts = countRecordsByMonth(mercadoComparison, comparisonYear, comparisonMonths);
+  const mercadoValidosMonthCounts = countRecordsByMonth(mercadoValidosComparison, comparisonYear, comparisonMonths);
   const monthlyComparison = {
     year: comparisonYear,
-    categories: QUALITY_MONTHS.map(item => item.label),
-    bodegaSeries: QUALITY_MONTHS.map(item => bodegaMonthCounts[createMonthKey(comparisonYear, item.month)] || 0),
-    mercadoSeries: QUALITY_MONTHS.map(item => mercadoMonthCounts[createMonthKey(comparisonYear, item.month)] || 0),
-    mercadoValidosSeries: QUALITY_MONTHS.map(item => mercadoValidosMonthCounts[createMonthKey(comparisonYear, item.month)] || 0)
+    categories: comparisonMonths.map(item => item.label),
+    bodegaSeries: comparisonMonths.map(item => bodegaMonthCounts[createMonthKey(comparisonYear, item.month)] || 0),
+    mercadoSeries: comparisonMonths.map(item => mercadoMonthCounts[createMonthKey(comparisonYear, item.month)] || 0),
+    mercadoValidosSeries: comparisonMonths.map(item => mercadoValidosMonthCounts[createMonthKey(comparisonYear, item.month)] || 0)
   };
 
-  const bodegaDayCounts = countRecordsByDay(bodegaComparison, comparisonYear);
-  const mercadoDayCounts = countRecordsByDay(mercadoComparison, comparisonYear);
-  const mercadoValidosDayCounts = countRecordsByDay(mercadoValidosComparison, comparisonYear);
-  const dailyKeys = QUALITY_MONTHS.flatMap(({ month, label }) => {
+  const bodegaDayCounts = countRecordsByDay(bodegaComparison, comparisonYear, comparisonMonths);
+  const mercadoDayCounts = countRecordsByDay(mercadoComparison, comparisonYear, comparisonMonths);
+  const mercadoValidosDayCounts = countRecordsByDay(mercadoValidosComparison, comparisonYear, comparisonMonths);
+  const dailyKeys = comparisonMonths.flatMap(({ month, label }) => {
     const days = getDaysInMonth(comparisonYear, month);
     return Array.from({ length: days }, (_, index) => ({
       key: createDateKey(comparisonYear, month, index + 1),

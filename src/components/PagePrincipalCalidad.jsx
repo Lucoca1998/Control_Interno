@@ -28,7 +28,8 @@ const PHOTO_STORAGE_KEY = 'coca_quality_error_photos_v1';
 const PHOTO_SLOTS = [
   { id: 'faltante', label: 'Faltante' },
   { id: 'sobrante', label: 'Sobrante' },
-  { id: 'cruce', label: 'Cruce' }
+  { id: 'cruce', label: 'Cruce' },
+  { id: 'otro', label: 'Otro' }
 ];
 
 function formatPercent(value) {
@@ -668,7 +669,7 @@ export default function PagePrincipalCalidad({ dataset }) {
               height={comparisonMode === 'mensual' ? 330 : 430}
             />
           ) : (
-            <div className="quality-empty-state">No hay datos para MAY, JUN, JUL y AGO en el año seleccionado.</div>
+            <div className="quality-empty-state">No hay datos cargados para el periodo seleccionado.</div>
           )}
         </div>
       </section>

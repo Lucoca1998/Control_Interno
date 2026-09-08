@@ -350,7 +350,7 @@ export default function Page1Operaciones({ filteredData, filters, setFilters, al
                 {paginatedRecords.length > 0 ? (
                   paginatedRecords.map((r, i) => (
                     <tr key={r.id || i}>
-                      <td style={{ fontWeight: 600, color: '#60A5FA' }}>{r.mes || 'Junio 2026'}</td>
+                      <td style={{ fontWeight: 600, color: '#60A5FA' }}>{r.mes || 'Sin mes'}</td>
                       <td style={{ fontWeight: 600 }}>{r.dia || r.fecha}</td>
                       <td>
                         <span style={{ fontWeight: 700, color: '#fff' }}>
