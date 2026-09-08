@@ -830,6 +830,45 @@ export async function parseUploadedExcelFile(file) {
             const distribuidor = normalizeId(getFirstValue(row, ['DISTRIBUIDOR', 'CARGA', 'ASESOR', 'Distribuidor', 'Carga', 'Asesor'], 'Asesor Registrado'));
             const productoEntregado = getFirstValue(row, ['DETALLE SKU2', 'SKU2', 'PRODUCTO ENTREGADO'], '-');
 
+            const carga = normalizeId(getFirstValue(row, ['CARGA', 'Carga'], distribuidor));
+            const productoEsperado = getFirstValue(row, ['DETALLE SKU', 'SKU', 'PRODUCTO ESPERADO'], 'PRODUCTO REPORTE');
+            const cantidad = Number(getFirstValue(row, ['CANT.', 'CANTIDAD', 'Cantidad'], 1)) || 1;
+            const unidad = getFirstValue(row, ['UNIDAD', 'Unidad'], 'BOT.');
+            const lugar = getFirstValue(row, ['LUGAR DEL REPORTE', 'LUGAR', 'Lugar'], 'BODEGA');
+            // Robust extraction of resultado / validación (last column or explicit header):
+            let resultado = getFirstValue(row, [
+              'RESULTADO', 'Resultado', 'RESULTADOS', 'Resultados',
+              'VALIDACION', 'Validacion', 'VALIDACIÓN', 'Validación',
+              'ESTADO', 'Estado', 'ESTADO REPORTE'
+            ], '');
+
+            const observacion = getFirstValue(row, ['OBSERVACION', 'OBSERVACIÓN', 'OBSERVACIÃ“N', 'Observacion', 'Observación', 'Accion', 'Acción', 'AcciÃ³n'], '');
+
+            if (!resultado) {
+              const rowKeys = Object.keys(row);
+              for (let ki = rowKeys.length - 1; ki >= Math.max(0, rowKeys.length - 4); ki--) {
+                const k = rowKeys[ki];
+                const val = cleanCell(row[k], '');
+                if (!val) continue;
+                const upper = normalizeSearchText(val);
+                if (upper.includes('VALIDO') || upper.includes('NO VALIDO') || upper.includes('POR VALIDAR')) {
+                  resultado = val;
+                  break;
+                }
+              }
+            }
+
+            if (!resultado && observacion) {
+              const obsUpper = normalizeSearchText(observacion);
+              if (obsUpper.includes('VALIDO') && !obsUpper.includes('NO VALIDO')) {
+                resultado = 'VALIDO';
+              }
+            }
+
+            if (!resultado) {
+              resultado = 'POR VALIDAR';
+            }
+
             return {
               id: `UP_${Date.now()}_${idx}`,
               source_file: file.name,
@@ -845,8 +884,8 @@ export async function parseUploadedExcelFile(file) {
               unidad: getFirstValue(row, ['UNIDAD', 'Unidad'], 'BOT.'),
               producto_entregado: productoEntregado === 'nan' ? '-' : productoEntregado,
               lugar: getFirstValue(row, ['LUGAR DEL REPORTE', 'LUGAR', 'Lugar'], 'BODEGA'),
-              resultado: getFirstValue(row, ['RESULTADO', 'Resultado'], 'Procede'),
-              observacion: getFirstValue(row, ['OBSERVACION', 'OBSERVACIÓN', 'OBSERVACIÃ“N', 'Accion', 'Acción', 'AcciÃ³n'], ''),
+              resultado,
+              observacion,
               tipo_clasificacion: motivo.toUpperCase().includes('SOBRANTE')
                 ? 'Sobrante'
                 : motivo.toUpperCase().includes('CRUCE')
@@ -1346,11 +1385,32 @@ export function getQualityDashboardData(mercadoList, bodegaObsList, bodegaFSList
   const reclamosTotal = mercadoComparable.length;
   const total = bodegaTotal + reclamosTotal;
   const prevencionPct = total > 0 ? Number(((bodegaTotal / total) * 100).toFixed(1)) : 0;
+  const isMercadoRecordValido = (record) => {
+    const res = normalizeSearchText(record?.resultado || '').trim();
+    if (!res || res === 'POR VALIDAR' || res.includes('NO VALIDO') || res.includes('INVALIDO')) {
+      return false;
+    }
+    if (res === 'VALIDO' || res.startsWith('VALIDO') || res === 'PROCEDE' || res === 'VALIDADO') {
+      return true;
+    }
+
+    const obs = normalizeSearchText(record?.observacion || '').trim();
+    if (!obs || obs === 'POR VALIDAR' || obs.includes('NO VALIDO') || obs.includes('INVALIDO')) {
+      return false;
+    }
+    if (obs === 'VALIDO' || obs.startsWith('VALIDO')) {
+      return true;
+    }
+
+    return false;
+  };
+
+  const mercadoValidosComparable = mercadoComparable.filter(isMercadoRecordValido);
   const comparisonYear = Number(mercadoFilter?.year || bodegaFilter?.year) || getLatestComparisonYear([...records.mercado, ...records.bodega]);
   const comparisonPeriod = createYearPeriod(comparisonYear);
   const bodegaComparison = filterRecordsToPeriod(records.bodega, comparisonPeriod);
   const mercadoComparison = filterRecordsToPeriod(records.mercado, comparisonPeriod);
-  const mercadoValidosComparison = mercadoComparison.filter(record => normalizeSearchText(record.resultado) === 'VALIDO');
+  const mercadoValidosComparison = mercadoComparison.filter(isMercadoRecordValido);
   const comparisonMonths = getComparisonMonths([...bodegaComparison, ...mercadoComparison], comparisonYear);
 
   const bodegaMonthCounts = countRecordsByMonth(bodegaComparison, comparisonYear, comparisonMonths);
@@ -1388,6 +1448,8 @@ export function getQualityDashboardData(mercadoList, bodegaObsList, bodegaFSList
     kpis: {
       bodega: bodegaTotal,
       reclamos: reclamosTotal,
+      mercadoValidos: mercadoValidosComparable.length,
+      reclamosValidosPct: reclamosTotal > 0 ? Number(((mercadoValidosComparable.length / reclamosTotal) * 100).toFixed(1)) : 0,
       total,
       prevencionPct
     },

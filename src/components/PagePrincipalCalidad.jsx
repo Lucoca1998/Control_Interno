@@ -22,14 +22,17 @@ import {
   Filter
 } from 'lucide-react';
 import EditableTitle from './EditableTitle';
-
-const PHOTO_STORAGE_KEY = 'coca_quality_error_photos_v1';
+import { 
+  loadAllStoredPhotos, 
+  saveStoredPhoto, 
+  deleteStoredPhoto, 
+  compressImage 
+} from '../utils/photoStorage';
 
 const PHOTO_SLOTS = [
   { id: 'faltante', label: 'Faltante' },
   { id: 'sobrante', label: 'Sobrante' },
-  { id: 'cruce', label: 'Cruce' },
-  { id: 'otro', label: 'Otro' }
+  { id: 'cruce', label: 'Cruce' }
 ];
 
 function formatPercent(value) {
@@ -47,14 +50,6 @@ function formatPeriod(period) {
   if (!period?.start || !period?.end) return 'Periodo disponible';
   if (period.start === period.end) return `Periodo: ${formatDateLabel(period.start)}`;
   return `Periodo: ${formatDateLabel(period.start)} a ${formatDateLabel(period.end)}`;
-}
-
-function loadStoredPhotos() {
-  try {
-    return JSON.parse(window.localStorage.getItem(PHOTO_STORAGE_KEY)) || {};
-  } catch {
-    return {};
-  }
 }
 
 function resolveSelectedPeriod(period, options) {
@@ -350,8 +345,17 @@ export default function PagePrincipalCalidad({ dataset }) {
   // 3. DETALLE DE ERRORES POR ÁREA filter state (SOLO POR MES)
   const [detallesMonthFilter, setDetallesMonthFilter] = useState('TODOS');
 
-  const [photos, setPhotos] = useState(loadStoredPhotos);
+  const [photos, setPhotos] = useState({});
   const [photoNotice, setPhotoNotice] = useState('');
+
+  // Load photos asynchronously from IndexedDB
+  useMemo(() => {
+    loadAllStoredPhotos().then(loaded => {
+      if (loaded && typeof loaded === 'object') {
+        setPhotos(loaded);
+      }
+    }).catch(err => console.warn('No se pudieron cargar fotos:', err));
+  }, []);
 
   const { mercado, bodega_observaciones, bodega_faltantes_sobrantes } = dataset;
 
@@ -413,7 +417,7 @@ export default function PagePrincipalCalidad({ dataset }) {
       mercado: activeMercadoFilter,
       bodega: activeBodegaFilter
     })
-  ), [mercado, bodega_observaciones, bodega_faltantes_sobrantes, activeMercadoFilter, activeMercadoFilter]);
+  ), [mercado, bodega_observaciones, bodega_faltantes_sobrantes, activeMercadoFilter, activeBodegaFilter]);
 
   const mercadoDetails = useMemo(() => (
     getMercadoErrorDetails(mercado, activeDetallesFilter)
@@ -423,16 +427,7 @@ export default function PagePrincipalCalidad({ dataset }) {
     getMercadoErrorDetails(mercado, activeMercadoFilter)
   ), [mercado, activeMercadoFilter]);
 
-  const persistPhotos = (nextPhotos) => {
-    try {
-      window.localStorage.setItem(PHOTO_STORAGE_KEY, JSON.stringify(nextPhotos));
-      setPhotoNotice('');
-    } catch {
-      setPhotoNotice('La foto se muestra en esta sesión, pero el navegador no pudo guardarla localmente.');
-    }
-  };
-
-  const handlePhotoUpload = (slotId, file) => {
+  const handlePhotoUpload = async (slotId, file) => {
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
@@ -440,31 +435,37 @@ export default function PagePrincipalCalidad({ dataset }) {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      setPhotos(prev => {
-        const nextPhotos = {
-          ...prev,
-          [slotId]: {
-            name: file.name,
-            url: reader.result,
-            uploadedAt: new Date().toISOString()
-          }
-        };
-        persistPhotos(nextPhotos);
-        return nextPhotos;
-      });
-    };
-    reader.readAsDataURL(file);
+    try {
+      setPhotoNotice('Optimizando y guardando imagen...');
+      const compressedUrl = await compressImage(file);
+      const photoData = {
+        name: file.name,
+        url: compressedUrl,
+        uploadedAt: new Date().toISOString()
+      };
+      await saveStoredPhoto(slotId, photoData);
+      setPhotos(prev => ({
+        ...prev,
+        [slotId]: photoData
+      }));
+      setPhotoNotice('');
+    } catch (err) {
+      console.error('Error procesando fotografía:', err);
+      setPhotoNotice('No se pudo guardar la fotografía en el almacenamiento.');
+    }
   };
 
-  const handleRemovePhoto = (slotId) => {
-    setPhotos(prev => {
-      const nextPhotos = { ...prev };
-      delete nextPhotos[slotId];
-      persistPhotos(nextPhotos);
-      return nextPhotos;
-    });
+  const handleRemovePhoto = async (slotId) => {
+    try {
+      await deleteStoredPhoto(slotId);
+      setPhotos(prev => {
+        const nextPhotos = { ...prev };
+        delete nextPhotos[slotId];
+        return nextPhotos;
+      });
+    } catch (err) {
+      console.error('Error al quitar foto:', err);
+    }
   };
 
   const kpiCards = [
@@ -476,14 +477,21 @@ export default function PagePrincipalCalidad({ dataset }) {
       tone: 'green'
     },
     {
-      label: 'RECLAMOS',
+      label: 'RECLAMOS MERCADO',
       value: dashboard.kpis.reclamos.toLocaleString(),
-      detail: `Mercado ${mercadoDetails.periodLabel}`,
+      detail: `Total en ${mercadoDetails.periodLabel}`,
       icon: AlertTriangle,
       tone: 'red'
     },
     {
-      label: 'TOTAL',
+      label: 'ERRORES VÁLIDOS',
+      value: (dashboard.kpis.mercadoValidos || 0).toLocaleString(),
+      detail: `${dashboard.kpis.reclamosValidosPct || 0}% de reclamos validados`,
+      icon: CheckCircle,
+      tone: 'amber'
+    },
+    {
+      label: 'TOTAL ERRORES',
       value: dashboard.kpis.total.toLocaleString(),
       detail: 'Bodega + Reclamos',
       icon: Calculator,
@@ -494,7 +502,7 @@ export default function PagePrincipalCalidad({ dataset }) {
       value: formatPercent(dashboard.kpis.prevencionPct),
       detail: 'Bodega ÷ Total',
       icon: Percent,
-      tone: 'amber'
+      tone: 'green'
     }
   ];
 
@@ -559,9 +567,9 @@ export default function PagePrincipalCalidad({ dataset }) {
   };
 
   const comparisonSeries = [
-    { name: 'Bodega', data: comparisonData.bodegaSeries },
-    { name: 'Reclamos de mercado', data: comparisonData.mercadoSeries },
-    { name: 'Errores válidos de mercado', data: comparisonData.mercadoValidosSeries }
+    { name: 'Bodega (Detectados)', data: comparisonData.bodegaSeries },
+    { name: 'Reclamos Mercado (Total)', data: comparisonData.mercadoSeries },
+    { name: 'Errores Válidos de Mercado', data: comparisonData.mercadoValidosSeries }
   ];
 
   const maxErrorValue = Math.max(
@@ -626,15 +634,17 @@ export default function PagePrincipalCalidad({ dataset }) {
           <div>
             <div className="card-title">
               <BarChart3 size={20} color="#E61D2B" />
-              <EditableTitle id="pag_principal_nav_menu_title" defaultTitle="Menú de navegación" tag="span" />
+              <EditableTitle id="pag_principal_nav_menu_title" defaultTitle="Comparación de Errores: Bodega vs Mercado vs Errores Válidos" tag="span" />
             </div>
-            <p className="quality-card-caption">Comparación por meses {dashboard.monthlyComparison.year}</p>
+            <p className="quality-card-caption">
+              Comparación {comparisonMode === 'mensual' ? 'mensual' : 'diaria'} {dashboard.monthlyComparison.year} | 3 Columnas: Errores detectados en bodega, total de reclamos y errores válidos confirmados en mercado.
+            </p>
           </div>
 
           <div className="quality-chart-legend" aria-label="Leyenda de series">
-            <span><i className="legend-dot green" /> Bodega</span>
-            <span><i className="legend-dot red" /> Reclamos de mercado</span>
-            <span><i className="legend-dot amber" /> Errores válidos de mercado</span>
+            <span><i className="legend-dot green" /> Bodega (Detectados)</span>
+            <span><i className="legend-dot red" /> Reclamos Mercado (Total)</span>
+            <span><i className="legend-dot amber" /> Errores Válidos de Mercado</span>
           </div>
         </div>
 
@@ -875,7 +885,9 @@ export default function PagePrincipalCalidad({ dataset }) {
 
               return (
                 <article className="quality-photo-card" key={slot.id}>
-                  <div className="quality-photo-title">{slot.label}</div>
+                  <div className="quality-photo-title">
+                    <EditableTitle id={`pag_principal_photo_title_${slot.id}`} defaultTitle={slot.label} tag="span" style={{ color: 'var(--coca-white)', fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: '0.95rem' }} />
+                  </div>
                   <div className={`quality-photo-preview ${photo ? 'has-photo' : ''}`}>
                     {photo ? (
                       <img src={photo.url} alt={`Foto real de error: ${slot.label}`} />

@@ -36,6 +36,8 @@ export default function FileUploadModal({ isOpen, onClose, onDataUploaded, onDat
     let processedFiles = 0;
     let repeatedFiles = [];
 
+    const batchData = [];
+
     try {
       for (let i = 0; i < filesToProcess.length; i++) {
         const file = filesToProcess[i];
@@ -57,12 +59,16 @@ export default function FileUploadModal({ isOpen, onClose, onDataUploaded, onDat
           const faltantesCount = res.bodega_faltantes_sobrantes?.length || 0;
 
           if (mercadoCount > 0 || camionesCount > 0 || observacionesCount > 0 || faltantesCount > 0) {
-            onDataUploaded(res);
+            batchData.push(res);
             totalMercadoAdded += mercadoCount;
             totalBodegaAdded += camionesCount + observacionesCount + faltantesCount;
             processedFiles++;
           }
         }
+      }
+
+      if (batchData.length > 0) {
+        onDataUploaded(batchData);
       }
 
       if (repeatedFiles.length > 0 && processedFiles === 0) {

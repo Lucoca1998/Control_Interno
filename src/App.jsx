@@ -12,6 +12,7 @@ import {
   Trophy, 
   UploadCloud
 } from 'lucide-react';
+import EditableTitle from './components/EditableTitle';
 
 const DATA_DB_NAME = 'coca-quality-dashboard';
 const DATA_STORE_NAME = 'dataset';
@@ -88,6 +89,9 @@ export default function App() {
         };
         const storedDataset = await readStoredDataset();
         const datasetToUse = storedDataset || nextData;
+        if (!storedDataset) {
+          writeStoredDataset(nextData).catch(e => console.warn('Could not initialize DB:', e));
+        }
         setRawDataset(datasetToUse);
         setFilters(prev => ({
           ...prev,
@@ -122,40 +126,55 @@ export default function App() {
   }, [rawDataset]);
 
   const handleDataUploaded = (newParsedData) => {
+    const results = Array.isArray(newParsedData) ? newParsedData : [newParsedData];
+    if (results.length === 0) return;
+
     setRawDataset(prev => {
-      const mercadoAdded = newParsedData.mercado || [];
-      const camionesAdded = newParsedData.bodega_camiones || [];
-      const observacionesAdded = newParsedData.bodega_observaciones || [];
-      const faltantesAdded = newParsedData.bodega_faltantes_sobrantes || [];
-      const recordsCount = mercadoAdded.length + camionesAdded.length + observacionesAdded.length + faltantesAdded.length;
-      const uploadedDates = [
-        ...mercadoAdded,
-        ...camionesAdded,
-        ...observacionesAdded,
-        ...faltantesAdded
-      ].map(item => item.fecha).filter(Boolean).sort();
+      let allMercado = [];
+      let allCamiones = [];
+      let allObs = [];
+      let allFS = [];
+      const newFilesMeta = [];
+
+      for (const res of results) {
+        const m = res.mercado || [];
+        const bc = res.bodega_camiones || [];
+        const bo = res.bodega_observaciones || [];
+        const bfs = res.bodega_faltantes_sobrantes || [];
+        const count = m.length + bc.length + bo.length + bfs.length;
+        if (count === 0) continue;
+
+        allMercado = [...allMercado, ...m];
+        allCamiones = [...allCamiones, ...bc];
+        allObs = [...allObs, ...bo];
+        allFS = [...allFS, ...bfs];
+
+        const dates = [...m, ...bc, ...bo, ...bfs].map(i => i.fecha).filter(Boolean).sort();
+        newFilesMeta.push({
+          fileName: res.fileName || 'Archivo Subido',
+          fileType: m.length > 0 ? 'Mercado' : 'Bodega Informe',
+          recordsCount: count,
+          startDate: dates[0] || 'Nuevo',
+          endDate: dates[dates.length - 1] || 'Nuevo'
+        });
+      }
+
+      const newFileNames = new Set(newFilesMeta.map(f => f.fileName));
+      const remainingOldFiles = (prev.loaded_files || []).filter(f => !newFileNames.has(f.fileName));
 
       const nextDataset = {
-        mercado: [...mercadoAdded, ...(prev.mercado || [])],
-        bodega_camiones: [...camionesAdded, ...(prev.bodega_camiones || [])],
-        bodega_observaciones: [...observacionesAdded, ...(prev.bodega_observaciones || [])],
-        bodega_faltantes_sobrantes: [...faltantesAdded, ...(prev.bodega_faltantes_sobrantes || [])],
-        loaded_files: [
-          {
-            fileName: newParsedData.fileName || 'Archivo Subido',
-            fileType: mercadoAdded.length > 0 ? 'Mercado' : 'Bodega Informe',
-            recordsCount,
-            startDate: uploadedDates[0] || 'Nuevo',
-            endDate: uploadedDates[uploadedDates.length - 1] || 'Nuevo'
-          },
-          ...(prev.loaded_files || []).filter(f => f.fileName !== (newParsedData.fileName || 'Archivo Subido'))
-        ]
+        mercado: [...allMercado, ...(prev.mercado || [])],
+        bodega_camiones: [...allCamiones, ...(prev.bodega_camiones || [])],
+        bodega_observaciones: [...allObs, ...(prev.bodega_observaciones || [])],
+        bodega_faltantes_sobrantes: [...allFS, ...(prev.bodega_faltantes_sobrantes || [])],
+        loaded_files: [...newFilesMeta, ...remainingOldFiles]
       };
 
       const finalDataset = {
         ...nextDataset,
         available_dates: calculateAvailableDates(nextDataset)
       };
+
       writeStoredDataset(finalDataset).catch(error => console.error('No se pudo guardar el dataset:', error));
       return finalDataset;
     });
@@ -214,8 +233,8 @@ export default function App() {
         <div className="brand">
           <div className="logo-badge">CC</div>
           <div>
-            <div className="brand-title">Control Interno Coca-Cola</div>
-            <div className="brand-subtitle">Operaciones, Reclamos & Trazabilidad</div>
+            <EditableTitle id="navbar_brand_title" defaultTitle="Control Interno Coca-Cola" tag="div" style={{ fontWeight: 800, fontSize: '1.05rem', color: '#fff' }} />
+            <EditableTitle id="navbar_brand_subtitle" defaultTitle="Operaciones, Reclamos & Trazabilidad" tag="div" style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }} />
           </div>
         </div>
 
