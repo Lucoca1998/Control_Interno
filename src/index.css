@@ -655,6 +655,10 @@ select.form-control {
   background: #EF4444;
 }
 
+.legend-dot.amber {
+  background: #F59E0B;
+}
+
 .quality-comparison-body {
   display: flex;
   flex-direction: column;

@@ -882,7 +882,7 @@ const QUALITY_MONTHS = [
   { month: 8, label: 'AGO' }
 ];
 
-const QUALITY_ERROR_CATEGORIES = ['Producto', 'Cantidad', 'Pallet', 'Incompleta'];
+const QUALITY_ERROR_CATEGORIES = ['Faltante', 'Sobrante', 'Cruce'];
 
 const MONTH_LABELS = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -922,51 +922,9 @@ function getRecordText(record) {
 function classifyQualityError(record) {
   const text = getRecordText(record);
 
-  if (text.includes('PALLET') || text.includes('PALET') || text.includes('ID_PALLET')) {
-    return 'Pallet';
-  }
-
-  if (
-    text.includes('CRUCE') ||
-    text.includes('PRODUCTO') ||
-    /^C[.\s]/.test(text) ||
-    text.includes(' X ')
-  ) {
-    return 'Producto';
-  }
-
-  if (
-    text.includes('INCOMPLET') ||
-    text.includes('VACIA') ||
-    text.includes('MERM') ||
-    text.includes('ROTA') ||
-    text.includes('ROTURA') ||
-    text.includes('PINCH') ||
-    text.includes('SIN TAPA') ||
-    text.includes('SIN ETIQUETA') ||
-    text.includes('MAL ESTADO') ||
-    text.includes('VENCIDA')
-  ) {
-    return 'Incompleta';
-  }
-
-  if (
-    text.includes('FALTANTE') ||
-    text.includes('SOBRANTE') ||
-    text.includes('CANT') ||
-    text.includes('CAJA') ||
-    text.includes('CJA') ||
-    text.includes('CJS') ||
-    text.includes('BOT') ||
-    text.includes('PQT') ||
-    text.includes('PQTS') ||
-    /^F[.\s0-9]/.test(text) ||
-    /^S[.\s0-9]/.test(text)
-  ) {
-    return 'Cantidad';
-  }
-
-  return 'Producto';
+  if (text.includes('SOBRANTE') || /^S[.\s0-9]/.test(text)) return 'Sobrante';
+  if (text.includes('CRUCE') || /^C[.\s0-9]/.test(text) || text.includes(' X ')) return 'Cruce';
+  return 'Faltante';
 }
 
 function getLatestComparisonYear(records) {
@@ -1398,18 +1356,22 @@ export function getQualityDashboardData(mercadoList, bodegaObsList, bodegaFSList
   const comparisonPeriod = createYearPeriod(comparisonYear);
   const bodegaComparison = filterRecordsToPeriod(records.bodega, comparisonPeriod);
   const mercadoComparison = filterRecordsToPeriod(records.mercado, comparisonPeriod);
+  const mercadoValidosComparison = mercadoComparison.filter(record => normalizeSearchText(record.resultado) === 'VALIDO');
 
   const bodegaMonthCounts = countRecordsByMonth(bodegaComparison, comparisonYear);
   const mercadoMonthCounts = countRecordsByMonth(mercadoComparison, comparisonYear);
+  const mercadoValidosMonthCounts = countRecordsByMonth(mercadoValidosComparison, comparisonYear);
   const monthlyComparison = {
     year: comparisonYear,
     categories: QUALITY_MONTHS.map(item => item.label),
     bodegaSeries: QUALITY_MONTHS.map(item => bodegaMonthCounts[createMonthKey(comparisonYear, item.month)] || 0),
-    mercadoSeries: QUALITY_MONTHS.map(item => mercadoMonthCounts[createMonthKey(comparisonYear, item.month)] || 0)
+    mercadoSeries: QUALITY_MONTHS.map(item => mercadoMonthCounts[createMonthKey(comparisonYear, item.month)] || 0),
+    mercadoValidosSeries: QUALITY_MONTHS.map(item => mercadoValidosMonthCounts[createMonthKey(comparisonYear, item.month)] || 0)
   };
 
   const bodegaDayCounts = countRecordsByDay(bodegaComparison, comparisonYear);
   const mercadoDayCounts = countRecordsByDay(mercadoComparison, comparisonYear);
+  const mercadoValidosDayCounts = countRecordsByDay(mercadoValidosComparison, comparisonYear);
   const dailyKeys = QUALITY_MONTHS.flatMap(({ month, label }) => {
     const days = getDaysInMonth(comparisonYear, month);
     return Array.from({ length: days }, (_, index) => ({
@@ -1423,7 +1385,8 @@ export function getQualityDashboardData(mercadoList, bodegaObsList, bodegaFSList
     categories: dailyKeys.map(item => item.label),
     dates: dailyKeys.map(item => item.key),
     bodegaSeries: dailyKeys.map(item => bodegaDayCounts[item.key] || 0),
-    mercadoSeries: dailyKeys.map(item => mercadoDayCounts[item.key] || 0)
+    mercadoSeries: dailyKeys.map(item => mercadoDayCounts[item.key] || 0),
+    mercadoValidosSeries: dailyKeys.map(item => mercadoValidosDayCounts[item.key] || 0)
   };
 
   return {

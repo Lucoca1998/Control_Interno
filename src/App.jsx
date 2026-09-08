@@ -13,6 +13,36 @@ import {
   UploadCloud
 } from 'lucide-react';
 
+const DATA_DB_NAME = 'coca-quality-dashboard';
+const DATA_STORE_NAME = 'dataset';
+
+function openDatasetDb() {
+  return new Promise((resolve, reject) => {
+    const request = window.indexedDB.open(DATA_DB_NAME, 1);
+    request.onupgradeneeded = () => request.result.createObjectStore(DATA_STORE_NAME);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function readStoredDataset() {
+  const db = await openDatasetDb();
+  return new Promise((resolve, reject) => {
+    const request = db.transaction(DATA_STORE_NAME, 'readonly').objectStore(DATA_STORE_NAME).get('current');
+    request.onsuccess = () => resolve(request.result || null);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function writeStoredDataset(dataset) {
+  const db = await openDatasetDb();
+  return new Promise((resolve, reject) => {
+    const request = db.transaction(DATA_STORE_NAME, 'readwrite').objectStore(DATA_STORE_NAME).put(dataset, 'current');
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('principal');
   const [rawDataset, setRawDataset] = useState({ mercado: [], bodega_camiones: [], bodega_observaciones: [], bodega_faltantes_sobrantes: [], loaded_files: [], available_dates: {} });
@@ -56,10 +86,12 @@ export default function App() {
           loaded_files: initialFiles,
           available_dates: calculateAvailableDates(data)
         };
-        setRawDataset(nextData);
+        const storedDataset = await readStoredDataset();
+        const datasetToUse = storedDataset || nextData;
+        setRawDataset(datasetToUse);
         setFilters(prev => ({
           ...prev,
-          ...getLatestComparableDateFilters(nextData)
+          ...getLatestComparableDateFilters(datasetToUse)
         }));
       } catch (err) {
         console.error("Error loading data.json:", err);
@@ -120,10 +152,12 @@ export default function App() {
         ]
       };
 
-      return {
+      const finalDataset = {
         ...nextDataset,
         available_dates: calculateAvailableDates(nextDataset)
       };
+      writeStoredDataset(finalDataset).catch(error => console.error('No se pudo guardar el dataset:', error));
+      return finalDataset;
     });
   };
 
@@ -150,10 +184,12 @@ export default function App() {
         loaded_files: nextFiles
       };
 
-      return {
+      const finalDataset = {
         ...nextDataset,
         available_dates: calculateAvailableDates(nextDataset)
       };
+      writeStoredDataset(finalDataset).catch(error => console.error('No se pudo guardar el dataset:', error));
+      return finalDataset;
     });
   };
 
@@ -161,7 +197,11 @@ export default function App() {
     const finalEndDate = endDate || startDate;
     const summary = countRecordsInDateRange(rawDataset, startDate, finalEndDate);
     if (summary.total > 0) {
-      setRawDataset(prev => purgeDatesFromDataset(prev, startDate, finalEndDate));
+      setRawDataset(prev => {
+        const nextDataset = purgeDatesFromDataset(prev, startDate, finalEndDate);
+        writeStoredDataset(nextDataset).catch(error => console.error('No se pudo guardar el dataset:', error));
+        return nextDataset;
+      });
     }
     return summary;
   };

@@ -26,10 +26,9 @@ import EditableTitle from './EditableTitle';
 const PHOTO_STORAGE_KEY = 'coca_quality_error_photos_v1';
 
 const PHOTO_SLOTS = [
-  { id: 'producto', label: 'Producto' },
-  { id: 'cantidad', label: 'Cantidad' },
-  { id: 'pallet', label: 'Pallet' },
-  { id: 'otro', label: 'Otro' }
+  { id: 'faltante', label: 'Faltante' },
+  { id: 'sobrante', label: 'Sobrante' },
+  { id: 'cruce', label: 'Cruce' }
 ];
 
 function formatPercent(value) {
@@ -502,7 +501,7 @@ export default function PagePrincipalCalidad({ dataset }) {
     ? dashboard.monthlyComparison
     : dashboard.dailyComparison;
 
-  const hasComparisonData = [...comparisonData.bodegaSeries, ...comparisonData.mercadoSeries].some(value => value > 0);
+  const hasComparisonData = [...comparisonData.bodegaSeries, ...comparisonData.mercadoSeries, ...comparisonData.mercadoValidosSeries].some(value => value > 0);
 
   const comparisonOptions = {
     chart: {
@@ -512,7 +511,7 @@ export default function PagePrincipalCalidad({ dataset }) {
       zoom: { enabled: comparisonMode === 'diaria' }
     },
     theme: { mode: 'dark' },
-    colors: ['#22C55E', '#EF4444'],
+    colors: ['#22C55E', '#EF4444', '#F59E0B'],
     plotOptions: {
       bar: {
         horizontal: false,
@@ -560,7 +559,8 @@ export default function PagePrincipalCalidad({ dataset }) {
 
   const comparisonSeries = [
     { name: 'Bodega', data: comparisonData.bodegaSeries },
-    { name: 'Mercado', data: comparisonData.mercadoSeries }
+    { name: 'Reclamos de mercado', data: comparisonData.mercadoSeries },
+    { name: 'Errores válidos de mercado', data: comparisonData.mercadoValidosSeries }
   ];
 
   const maxErrorValue = Math.max(
@@ -632,7 +632,8 @@ export default function PagePrincipalCalidad({ dataset }) {
 
           <div className="quality-chart-legend" aria-label="Leyenda de series">
             <span><i className="legend-dot green" /> Bodega</span>
-            <span><i className="legend-dot red" /> Mercado</span>
+            <span><i className="legend-dot red" /> Reclamos de mercado</span>
+            <span><i className="legend-dot amber" /> Errores válidos de mercado</span>
           </div>
         </div>
 
