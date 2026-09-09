@@ -3,33 +3,10 @@
  * Ensures uploaded photos never exceed localStorage limits and persist across page refreshes.
  */
 
-const DB_NAME = 'coca-quality-dashboard';
-const DB_VERSION = 2;
+import { openAppDb } from './db';
+
 const PHOTO_STORE = 'photos';
 const FALLBACK_KEY_PREFIX = 'coca_photo_';
-
-function openDb() {
-  return new Promise((resolve, reject) => {
-    if (typeof window === 'undefined' || !window.indexedDB) {
-      return resolve(null);
-    }
-    const request = window.indexedDB.open(DB_NAME, DB_VERSION);
-    request.onupgradeneeded = (event) => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains('dataset')) {
-        db.createObjectStore('dataset');
-      }
-      if (!db.objectStoreNames.contains(PHOTO_STORE)) {
-        db.createObjectStore(PHOTO_STORE);
-      }
-    };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => {
-      console.warn('IndexedDB open error, falling back to localStorage:', request.error);
-      resolve(null);
-    };
-  });
-}
 
 /**
  * Compresses an image file via HTML Canvas
@@ -83,7 +60,7 @@ export async function loadAllStoredPhotos() {
   const photos = {};
 
   try {
-    const db = await openDb();
+    const db = await openAppDb();
     if (db && db.objectStoreNames.contains(PHOTO_STORE)) {
       await new Promise((resolve) => {
         const tx = db.transaction(PHOTO_STORE, 'readonly');
@@ -130,7 +107,7 @@ export async function loadAllStoredPhotos() {
  */
 export async function saveStoredPhoto(slotId, photoData) {
   try {
-    const db = await openDb();
+    const db = await openAppDb();
     if (db && db.objectStoreNames.contains(PHOTO_STORE)) {
       await new Promise((resolve, reject) => {
         const tx = db.transaction(PHOTO_STORE, 'readwrite');
@@ -157,7 +134,7 @@ export async function saveStoredPhoto(slotId, photoData) {
  */
 export async function deleteStoredPhoto(slotId) {
   try {
-    const db = await openDb();
+    const db = await openAppDb();
     if (db && db.objectStoreNames.contains(PHOTO_STORE)) {
       await new Promise((resolve, reject) => {
         const tx = db.transaction(PHOTO_STORE, 'readwrite');

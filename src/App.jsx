@@ -14,35 +14,7 @@ import {
 } from 'lucide-react';
 import EditableTitle from './components/EditableTitle';
 
-const DATA_DB_NAME = 'coca-quality-dashboard';
-const DATA_STORE_NAME = 'dataset';
-
-function openDatasetDb() {
-  return new Promise((resolve, reject) => {
-    const request = window.indexedDB.open(DATA_DB_NAME, 1);
-    request.onupgradeneeded = () => request.result.createObjectStore(DATA_STORE_NAME);
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
-}
-
-async function readStoredDataset() {
-  const db = await openDatasetDb();
-  return new Promise((resolve, reject) => {
-    const request = db.transaction(DATA_STORE_NAME, 'readonly').objectStore(DATA_STORE_NAME).get('current');
-    request.onsuccess = () => resolve(request.result || null);
-    request.onerror = () => reject(request.error);
-  });
-}
-
-async function writeStoredDataset(dataset) {
-  const db = await openDatasetDb();
-  return new Promise((resolve, reject) => {
-    const request = db.transaction(DATA_STORE_NAME, 'readwrite').objectStore(DATA_STORE_NAME).put(dataset, 'current');
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
-  });
-}
+import { getStoredDataset, saveStoredDataset } from './utils/db';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('principal');
@@ -62,11 +34,30 @@ export default function App() {
     searchQuery: ''
   });
 
-  // Fetch initial data from public/data.json
+  // Fetch / restore dataset from persistent IndexedDB or fallback to public/data.json
   useEffect(() => {
     async function loadInitialData() {
       setIsLoading(true);
       try {
+        // 1. First priority: Check if user has saved data in persistent IndexedDB
+        const storedDataset = await getStoredDataset();
+        if (storedDataset && (
+          (storedDataset.mercado && storedDataset.mercado.length > 0) ||
+          (storedDataset.bodega_camiones && storedDataset.bodega_camiones.length > 0) ||
+          (storedDataset.loaded_files && storedDataset.loaded_files.length > 0)
+        )) {
+          console.log("Restaurando dataset persistente de IndexedDB:", storedDataset.loaded_files?.length, "archivos");
+          setRawDataset(storedDataset);
+          setFilters(prev => ({
+            ...prev,
+            ...getLatestComparableDateFilters(storedDataset)
+          }));
+          setIsLoading(false);
+          return;
+        }
+
+        // 2. Only if no saved dataset exists (fresh launch), load initial public/data.json
+        console.log("Inicializando dataset base desde data.json...");
         const dataUrl = `${import.meta.env.BASE_URL}data.json`;
         const response = await fetch(dataUrl);
         if (!response.ok) {
@@ -87,19 +78,18 @@ export default function App() {
           loaded_files: initialFiles,
           available_dates: calculateAvailableDates(data)
         };
-        const storedDataset = await readStoredDataset();
-        const datasetToUse = storedDataset || nextData;
-        if (!storedDataset) {
-          writeStoredDataset(nextData).catch(e => console.warn('Could not initialize DB:', e));
-        }
-        setRawDataset(datasetToUse);
+
+        // Immediately persist to IndexedDB so subsequent reloads restore everything
+        await saveStoredDataset(nextData);
+
+        setRawDataset(nextData);
         setFilters(prev => ({
           ...prev,
-          ...getLatestComparableDateFilters(datasetToUse)
+          ...getLatestComparableDateFilters(nextData)
         }));
       } catch (err) {
-        console.error("Error loading data.json:", err);
-        setLoadError("No se pudo cargar el archivo data.json inicial.");
+        console.error("Error cargando dataset:", err);
+        setLoadError("No se pudo inicializar los datos del dashboard.");
       } finally {
         setIsLoading(false);
       }
@@ -175,7 +165,7 @@ export default function App() {
         available_dates: calculateAvailableDates(nextDataset)
       };
 
-      writeStoredDataset(finalDataset).catch(error => console.error('No se pudo guardar el dataset:', error));
+      saveStoredDataset(finalDataset).catch(error => console.error('No se pudo guardar el dataset:', error));
       return finalDataset;
     });
   };
@@ -207,7 +197,7 @@ export default function App() {
         ...nextDataset,
         available_dates: calculateAvailableDates(nextDataset)
       };
-      writeStoredDataset(finalDataset).catch(error => console.error('No se pudo guardar el dataset:', error));
+      saveStoredDataset(finalDataset).catch(error => console.error('No se pudo guardar el dataset:', error));
       return finalDataset;
     });
   };
@@ -218,7 +208,7 @@ export default function App() {
     if (summary.total > 0) {
       setRawDataset(prev => {
         const nextDataset = purgeDatesFromDataset(prev, startDate, finalEndDate);
-        writeStoredDataset(nextDataset).catch(error => console.error('No se pudo guardar el dataset:', error));
+        saveStoredDataset(nextDataset).catch(error => console.error('No se pudo guardar el dataset:', error));
         return nextDataset;
       });
     }
@@ -231,7 +221,7 @@ export default function App() {
       {/* Top Navbar */}
       <header className="navbar">
         <div className="brand">
-          <div className="logo-badge">CC</div>
+          <img src={`${import.meta.env.BASE_URL}embol-logo.png`} alt="Embol" className="logo-badge" />
           <div>
             <EditableTitle id="navbar_brand_title" defaultTitle="Control Interno Coca-Cola" tag="div" style={{ fontWeight: 800, fontSize: '1.05rem', color: '#fff' }} />
             <EditableTitle id="navbar_brand_subtitle" defaultTitle="Operaciones, Reclamos & Trazabilidad" tag="div" style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }} />

@@ -272,18 +272,16 @@ select.form-control {
 }
 
 .logo-badge {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--coca-red) 0%, var(--coca-guindo) 100%);
+  width: 52px;
+  height: 52px;
+  border-radius: 8px;
+  background: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: var(--font-heading);
-  font-weight: 900;
-  font-size: 1.3rem;
-  color: #fff;
+  padding: 3px;
   box-shadow: var(--shadow-glow);
+  object-fit: contain;
 }
 
 .brand-title {
